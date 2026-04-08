@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Cal+Sans:wght@600&display=swap');
 
-@import './src/quill-overrides.css';
+@import './quill-overrides.css';
 
 @tailwind base;
 @tailwind components;

@@ -1,11 +1,25 @@
 import { useOutletContext, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { base44 } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, MessageSquare, CheckSquare, Plus, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatDistanceToNow } from 'date-fns';
 
+/**
+ * Home - Dashboard/landing page for authenticated users
+ * 
+ * This is the main entry point after login, providing a consolidated view
+ * of the user's workspace. It displays:
+ * - Statistics: counts of pages, channels (conversations), and tasks
+ * - Recent Pages: last 5 edited pages in the workspace
+ * - My Tasks: incomplete tasks assigned to the current user
+ * - AI Assistant: quick access link to the AI features
+ * 
+ * Data is fetched via React Query with workspace-scoped queries.
+ * The component waits for currentWorkspaceId from the outlet context
+ * before triggering data fetches.
+ */
 export default function Home() {
   const { user, currentWorkspaceId } = useOutletContext();
 

@@ -8,13 +8,22 @@ import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import MainLayout from '@/components/layout/MainLayout';
 
 // Page imports
-import Home from '@/pages/Home';
-import Chat from '@/pages/Chat';
-import PageEditor from '@/pages/PageEditor';
-import Tasks from '@/pages/Tasks';
-import AIAssistant from '@/pages/AIAssistant';
-import Search from '@/pages/Search';
+import Home from '@/Pages/Home';
+import Chat from '@/Pages/Chat';
+import PageEditor from '@/Pages/PageEditor';
+import Tasks from '@/Pages/Task';
+import AIAssistant from '@/Pages/AIAssistant';
+import Search from '@/Pages/Search';
 
+/**
+ * AuthenticatedApp - Handles routing and auth state for logged-in users
+ * 
+ * This component serves as the main router for authenticated users. It:
+ * - Displays a loading spinner while checking auth and public settings
+ * - Shows appropriate error states for auth failures (not registered, needs login)
+ * - Renders the main app routes via React Router
+ * - Uses a nested route structure with MainLayout for consistent UI shell
+ */
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 

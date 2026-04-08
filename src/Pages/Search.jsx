@@ -1,12 +1,29 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { base44 } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { Search as SearchIcon, FileText, MessageSquare, CheckSquare, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
+/**
+ * Search - Unified search across workspace entities
+ * 
+ * Client-side search implementation that filters across:
+ * - Pages (title and content)
+ * - Tasks (title and description)
+ * - Channels/Conversations (name only)
+ * 
+ * Features:
+ * - Real-time filtering as user types
+ * - Filter tabs to narrow results by entity type
+ * - Results sorted by relevance (title matches > content matches)
+ * - Empty states for no query and no results
+ * 
+ * Note: For large workspaces, consider server-side search with
+ * Supabase full-text search or external search service (Algolia).
+ */
 export default function Search() {
   const { user, currentWorkspaceId } = useOutletContext();
   const [query, setQuery] = useState('');

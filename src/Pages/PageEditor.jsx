@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { base44 } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,22 @@ import { Badge } from '@/components/ui/badge';
 import { formatDistanceToNow } from 'date-fns';
 import AIPageModal from '@/components/pages/AIPageModal';
 
+/**
+ * PageEditor - Rich text document editor with auto-save
+ * 
+ * This component handles both creating new pages and editing existing ones.
+ * Key features:
+ * - Quill-based rich text editor with custom toolbar
+ * - Auto-save with 2-second debounce for existing pages
+ * - Manual save/create button for explicit saves
+ * - Page type selection (doc, database, meeting_notes)
+ * - Icon picker for visual page identification
+ * - AI integration for content enhancement
+ * - Soft delete (archive) instead of hard delete
+ * 
+ * URL param: pageId = 'new' for creation, or actual ID for editing
+ * Query param: w = workspaceId for context
+ */
 const PAGE_ICONS = ['📄', '📝', '🗒️', '📋', '📊', '🗃️', '🔖', '💡', '🎯', '🧠', '📅', '🗓️'];
 
 const modules = {

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { base44 } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,6 +8,26 @@ import { Sparkles, Send, Loader2, User, Bot, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 
+/**
+ * AIAssistant - LLM-powered workspace assistant
+ * 
+ * This component provides an AI chat interface that can:
+ * - Access workspace context (pages, tasks, user info)
+ * - Generate contextual responses based on workspace data
+ * - Render markdown responses with syntax highlighting
+ * 
+ * Implementation details:
+ * - Fetches workspace data (pages, tasks) to build context
+ * - Constructs a system prompt with workspace information
+ * - Sends conversation history + new message to LLM
+ * - Displays streaming-like UI with loading state
+ * - Provides starter prompts for common actions
+ * 
+ * Note: The actual LLM invocation uses base44.integrations.Core.InvokeLLM
+ * which should be replaced with actual API integration in production.
+ */
+
+/** Pre-defined prompt suggestions shown to new users */
 const STARTER_PROMPTS = [
   "Summarize our recent conversations",
   "What tasks are overdue?",

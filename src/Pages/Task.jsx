@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { base44 } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,23 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import CreateTaskModal from '@/components/tasks/CreateTaskModal';
 
+/**
+ * Task - Kanban-style task management interface
+ * 
+ * Features:
+ * - Three-column Kanban board: Todo, In Progress, Done
+ * - Task filtering by status
+ * - Inline status advancement via circular buttons
+ * - Task priority display (low/medium/high with color coding)
+ * - Due date and assignee display
+ * - Create and delete functionality
+ * - Real-time query invalidation on mutations
+ * 
+ * Uses React Query for data fetching with workspace-scoped queries.
+ * Grouped display by status with task count badges.
+ */
+
+/** Status display configuration mapping status keys to UI properties */
 const STATUS_CONFIG = {
   todo: { label: 'Todo', icon: Circle, color: 'text-muted-foreground', bg: 'bg-muted' },
   in_progress: { label: 'In Progress', icon: Clock, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-500/10' },

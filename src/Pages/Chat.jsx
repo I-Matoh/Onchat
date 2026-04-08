@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/base44Client';
+import { base44 } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,22 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import CreateConversationModal from '@/components/chat/CreateConversationModal';
 
+/**
+ * Chat - Real-time messaging interface with channel support
+ * 
+ * This component provides a Slack-like chat experience with:
+ * - Channel sidebar listing all conversations in the workspace
+ * - Real-time message display with optimistic updates
+ * - Supabase realtime subscriptions for live message updates
+ * - Support for both public channels and direct messages
+ * 
+ * Key features:
+ * - Auto-select first channel on load
+ * - Auto-scroll to newest messages
+ * - Optimistic UI updates for instant message feedback
+ * - Grouped message bubbles for consecutive messages from same user
+ * - Polling fallback (3s interval) alongside realtime subscription
+ */
 export default function Chat() {
   const { user, currentWorkspaceId } = useOutletContext();
   const [selectedConvId, setSelectedConvId] = useState(null);
