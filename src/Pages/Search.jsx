@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { Search as SearchIcon, FileText, MessageSquare, CheckSquare, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -31,19 +31,19 @@ export default function Search() {
 
   const { data: pages = [] } = useQuery({
     queryKey: ['pages', currentWorkspaceId],
-    queryFn: () => base44.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
+    queryFn: () => db.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
     enabled: !!currentWorkspaceId,
   });
 
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', currentWorkspaceId],
-    queryFn: () => base44.entities.Task.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Task.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
   const { data: conversations = [] } = useQuery({
     queryKey: ['conversations', currentWorkspaceId],
-    queryFn: () => base44.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 

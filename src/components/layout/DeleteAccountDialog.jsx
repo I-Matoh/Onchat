@@ -5,7 +5,7 @@ import {
   AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { Trash2 } from 'lucide-react';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 
 export default function DeleteAccountDialog() {
   const [loading, setLoading] = useState(false);
@@ -13,11 +13,11 @@ export default function DeleteAccountDialog() {
   const handleDelete = async () => {
     setLoading(true);
     try {
-      await base44.auth.deleteAccount?.();
+      await db.auth.deleteAccount?.();
     } catch (e) {
       // fallback: just log out
     }
-    base44.auth.logout('/');
+    db.auth.logout('/');
   };
 
   return (

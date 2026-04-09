@@ -1,5 +1,5 @@
 import { useOutletContext, Link } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { FileText, MessageSquare, CheckSquare, Plus, ArrowRight, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,29 +21,36 @@ import { formatDistanceToNow } from 'date-fns';
  * before triggering data fetches.
  */
 export default function Home() {
+  // Get user and workspace from parent layout context
   const { user, currentWorkspaceId } = useOutletContext();
 
+  // Fetch pages for current workspace - exclude archived
   const { data: pages = [] } = useQuery({
     queryKey: ['pages', currentWorkspaceId],
-    queryFn: () => base44.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
+    queryFn: () => db.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Fetch all tasks in workspace
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', currentWorkspaceId],
-    queryFn: () => base44.entities.Task.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Task.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Fetch conversations/channels in workspace
   const { data: conversations = [] } = useQuery({
     queryKey: ['conversations', currentWorkspaceId],
-    queryFn: () => base44.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Get 5 most recently updated pages
   const recentPages = [...pages].sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date)).slice(0, 5);
+  // Get incomplete tasks assigned to current user
   const myTasks = tasks.filter(t => t.assignee_email === user?.email && t.status !== 'done').slice(0, 5);
 
+  // Dashboard stats for header cards
   const stats = [
     { label: 'Pages', value: pages.length, icon: FileText, color: 'text-violet-500', bg: 'bg-violet-50 dark:bg-violet-500/10' },
     { label: 'Channels', value: conversations.length, icon: MessageSquare, color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-500/10' },

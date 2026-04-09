@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useSearchParams, useLocation } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { useIsMobile } from '@/hooks/use-mobile';
 import AppSidebar from './AppSidebar';
@@ -8,36 +8,42 @@ import BottomTabBar from './BottomTabBar';
 import { Menu } from 'lucide-react';
 
 export default function MainLayout() {
+  // Get workspace ID from URL param ?w= or localStorage fallback
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const isMobile = useIsMobile();
+  // Prioritize URL param, then localStorage, then empty string
   const [currentWorkspaceId, setCurrentWorkspaceId] = useState(
     searchParams.get('w') || localStorage.getItem('onechat_workspace') || ''
   );
+  // Mobile sidebar visibility state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // Fetch current authenticated user
   const { data: user } = useQuery({
     queryKey: ['me'],
-    queryFn: () => base44.auth.me(),
+    queryFn: () => db.auth.me(),
   });
 
+  // Fetch all workspaces for the user
   const { data: workspaces = [] } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: () => base44.entities.Workspace.list(),
+    queryFn: () => db.entities.Workspace.list(),
   });
 
-  // Auto-select first workspace
+  // Auto-select first workspace if none selected
   useEffect(() => {
     if (!currentWorkspaceId && workspaces.length > 0) {
       handleWorkspaceChange(workspaces[0].id);
     }
   }, [workspaces, currentWorkspaceId]);
 
-  // Close sidebar on route change (mobile)
+  // Close sidebar on route change (mobile UX)
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  // Handle workspace switch - update state and persist to localStorage
   const handleWorkspaceChange = (id) => {
     setCurrentWorkspaceId(id);
     localStorage.setItem('onechat_workspace', id);

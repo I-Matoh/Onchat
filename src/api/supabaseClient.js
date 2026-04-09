@@ -15,6 +15,7 @@ import { appParams } from '@/lib/app-params';
  */
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -47,4 +48,28 @@ export const redirectToLogin = (redirectUrl) => {
   const loginUrl = new URL(import.meta.env.VITE_SUPABASE_LOGIN_URL || '/login');
   loginUrl.searchParams.set('redirect', redirectUrl);
   window.location.href = loginUrl.toString();
+};
+
+export const invokeGroq = async (prompt, model = 'llama-3.3-70b-versatile') => {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${groqApiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 2048,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Groq API error: ${error}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0]?.message?.content || '';
 };

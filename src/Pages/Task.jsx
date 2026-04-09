@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,24 +41,30 @@ const PRIORITY_CONFIG = {
 };
 
 export default function Tasks() {
+  // User and workspace from parent layout context
   const { user, currentWorkspaceId } = useOutletContext();
+  // Filter by status dropdown value
   const [filterStatus, setFilterStatus] = useState('all');
+  // Modal visibility for creating tasks
   const [showCreate, setShowCreate] = useState(false);
+  // React Query client for cache invalidation
   const queryClient = useQueryClient();
 
+  // Fetch all tasks in workspace
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', currentWorkspaceId],
-    queryFn: () => base44.entities.Task.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Task.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Update task status and refresh cache
   const updateStatus = async (taskId, newStatus) => {
-    await base44.entities.Task.update(taskId, { status: newStatus });
+    await db.entities.Task.update(taskId, { status: newStatus });
     queryClient.invalidateQueries({ queryKey: ['tasks', currentWorkspaceId] });
   };
 
   const deleteTask = async (taskId) => {
-    await base44.entities.Task.delete(taskId);
+    await db.entities.Task.delete(taskId);
     queryClient.invalidateQueries({ queryKey: ['tasks', currentWorkspaceId] });
   };
 

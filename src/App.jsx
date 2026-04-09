@@ -25,8 +25,10 @@ import Search from '@/Pages/Search';
  * - Uses a nested route structure with MainLayout for consistent UI shell
  */
 const AuthenticatedApp = () => {
+  // Auth state from context - includes loading states, user object, and any auth errors
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
+  // Show loading spinner while checking public settings or auth status
   if (isLoadingPublicSettings || isLoadingAuth) {
     return (
       <div className="fixed inset-0 flex items-center justify-center bg-background">
@@ -40,6 +42,7 @@ const AuthenticatedApp = () => {
     );
   }
 
+  // Handle auth errors - either user not registered or needs to login
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
@@ -49,6 +52,7 @@ const AuthenticatedApp = () => {
     }
   }
 
+  // Main route definitions - MainLayout provides sidebar and outlet context
   return (
     <Routes>
       <Route element={<MainLayout />}>

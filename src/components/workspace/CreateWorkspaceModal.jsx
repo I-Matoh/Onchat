@@ -8,13 +8,26 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+/**
+ * CreateWorkspaceModal - Dialog for creating new workspaces
+ * 
+ * Note: Uses direct Supabase client instead of db adapter.
+ * Could be refactored to use db.entities.Workspace.create()
+ * 
+ * Props:
+ * - user: current authenticated user (for owner_id)
+ * - onClose: callback to close modal
+ * - onCreated: callback with created workspace data
+ */
 export default function CreateWorkspaceModal({ user, onClose, onCreated }) {
+  // Handle form submit - create workspace directly via Supabase
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const name = formData.get('name');
     
     try {
+      // Insert new workspace with current user as owner
       const { data, error } = await supabase
         .from('workspaces')
         .insert({ name, owner_id: user?.id })

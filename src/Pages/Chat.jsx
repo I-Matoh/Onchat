@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,35 +27,47 @@ import CreateConversationModal from '@/components/chat/CreateConversationModal';
  * - Polling fallback (3s interval) alongside realtime subscription
  */
 export default function Chat() {
+  // Get auth user and workspace from layout context
   const { user, currentWorkspaceId } = useOutletContext();
+  // Currently selected conversation ID
   const [selectedConvId, setSelectedConvId] = useState(null);
+  // Current message input text
   const [messageText, setMessageText] = useState('');
+  // Modal state for creating new channel
   const [showCreate, setShowCreate] = useState(false);
+  // Prevent double-send while API call in progress
   const [sending, setSending] = useState(false);
+  // Ref for auto-scroll to bottom of messages
   const bottomRef = useRef(null);
+  // Query client for cache updates
   const queryClient = useQueryClient();
 
+  // Fetch all conversations in workspace
   const { data: conversations = [] } = useQuery({
     queryKey: ['conversations', currentWorkspaceId],
-    queryFn: () => base44.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Fetch messages for selected conversation - poll every 3s as realtime backup
   const { data: messages = [] } = useQuery({
     queryKey: ['messages', selectedConvId],
-    queryFn: () => base44.entities.Message.filter({ conversation_id: selectedConvId }, 'created_date', 100),
+    queryFn: () => db.entities.Message.filter({ conversation_id: selectedConvId }, 'created_date', 100),
     enabled: !!selectedConvId,
     refetchInterval: 3000,
   });
 
+  // Find selected conversation object
   const selectedConv = conversations.find(c => c.id === selectedConvId);
 
+  // Auto-select first conversation on load
   useEffect(() => {
     if (conversations.length > 0 && !selectedConvId) {
       setSelectedConvId(conversations[0].id);
     }
   }, [conversations]);
 
+  // Auto-scroll to newest message when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -63,7 +75,7 @@ export default function Chat() {
   // Real-time subscription
   useEffect(() => {
     if (!selectedConvId) return;
-    const unsub = base44.entities.Message.subscribe((event) => {
+    const unsub = db.entities.Message.subscribe((event) => {
       if (event.data?.conversation_id === selectedConvId) {
         queryClient.invalidateQueries({ queryKey: ['messages', selectedConvId] });
       }
@@ -90,7 +102,7 @@ export default function Chat() {
     };
     queryClient.setQueryData(['messages', selectedConvId], (old = []) => [...old, optimisticMsg]);
 
-    await base44.entities.Message.create({
+    await db.entities.Message.create({
       conversation_id: selectedConvId,
       workspace_id: currentWorkspaceId,
       sender_email: user?.email,
@@ -98,7 +110,7 @@ export default function Chat() {
       content: text,
       message_type: 'text',
     });
-    await base44.entities.Conversation.update(selectedConvId, {
+    await db.entities.Conversation.update(selectedConvId, {
       last_message: text,
       last_message_at: new Date().toISOString(),
     });

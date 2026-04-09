@@ -1,8 +1,8 @@
-import { supabase, getCurrentUser, signOut, redirectToLogin } from './supabaseClient';
+import { supabase, getCurrentUser, signOut, redirectToLogin, invokeGroq } from './supabaseClient';
 import { entities } from './entities';
 
 /**
- * base44 - Unified API adapter for Supabase-backed data operations
+ * db - Unified API adapter for Supabase-backed data operations
  * 
  * This module provides a clean abstraction layer over Supabase, offering:
  * - Auth methods: me, logout, deleteAccount, redirectToLogin
@@ -13,7 +13,7 @@ import { entities } from './entities';
  * for each entity type. This allows the UI to interact with data without
  * knowing the underlying Supabase implementation details.
  */
-export const base44 = {
+export const db = {
   auth: {
     me: getCurrentUser,
     logout: async (redirectUrl) => {
@@ -30,5 +30,10 @@ export const base44 = {
     },
     redirectToLogin: (redirectUrl) => redirectToLogin(redirectUrl)
   },
-  entities
+  entities,
+  integrations: {
+    Core: {
+      InvokeLLM: invokeGroq
+    }
+  }
 };

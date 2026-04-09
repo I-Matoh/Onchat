@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,23 +7,37 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
+/**
+ * CreateTaskModal - Dialog for creating new tasks
+ * 
+ * Props:
+ * - workspaceId: ID of the workspace
+ * - user: current user object (for default assignee)
+ * - onClose: callback to close modal
+ * - onCreated: callback after successful creation
+ */
 export default function CreateTaskModal({ workspaceId, user, onClose, onCreated }) {
+  // Form fields
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [priority, setPriority] = useState('medium');
+  // Default assignee to current user
   const [assignee, setAssignee] = useState(user?.email || '');
   const [dueDate, setDueDate] = useState('');
+  // Loading state during creation
   const [loading, setLoading] = useState(false);
 
+  // Create new task with form data
   const handleCreate = async () => {
     if (!title.trim()) return;
     setLoading(true);
-    await base44.entities.Task.create({
+    await db.entities.Task.create({
       workspace_id: workspaceId,
       title: title.trim(),
       description,
       priority,
       assignee_email: assignee,
+      // Send undefined instead of empty string
       due_date: dueDate || undefined,
       status: 'todo',
     });

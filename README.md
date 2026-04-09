@@ -1,40 +1,28 @@
 # Onchat
-Real time productivity app.
-**Welcome to your Base44 project** 
+Real-time productivity app.
 
 **About**
-
-View and Edit  your app
-This project contains everything you need to run your app locally.
-
-**Edit the code in your local development environment**
-
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+Onchat is a collaborative workspace application with real-time messaging, task management, pages, and AI-powered assistance.
 
 **Prerequisites:** 
 
 1. Clone the repository using the project's Git URL 
 2. Navigate to the project directory
 3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
+4. Create an `.env` file and set the right environment variables
 
 ```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.base44.app
+VITE_SUPABASE_URL=your-supabase-project-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_SUPABASE_LOGIN_URL=/login
+VITE_GROQ_API_KEY=your-groq-api-key
 ```
 
 Run the app: `npm run dev`
 
-**Publish your changes**
+**Tech Stack**
 
-Open [Base44.com](http://Base44.com) and click on Publish.
-
-**Docs & Support**
-
-Documentation: [https://docs.base44.com/Integrations/Using-GitHub](https://docs.base44.com/Integrations/Using-GitHub)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+- **Frontend**: React + TypeScript + Vite
+- **Database**: Supabase (PostgreSQL)
+- **AI**: Groq API (Llama 3.3)
+- **UI**: shadcn/ui components

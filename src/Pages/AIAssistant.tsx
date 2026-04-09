@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -23,7 +23,7 @@ import ReactMarkdown from 'react-markdown';
  * - Displays streaming-like UI with loading state
  * - Provides starter prompts for common actions
  * 
- * Note: The actual LLM invocation uses base44.integrations.Core.InvokeLLM
+ * Note: The actual LLM invocation uses Groq API
  * which should be replaced with actual API integration in production.
  */
 
@@ -37,40 +37,50 @@ const STARTER_PROMPTS = [
 ];
 
 export default function AIAssistant() {
+  // Get user and workspace from parent layout
   const { user, currentWorkspaceId } = useOutletContext();
+  // Chat message history - starts with welcome message
   const [messages, setMessages] = useState([
     { role: 'assistant', content: "Hi! I'm your AI assistant. I can help you summarize documents, extract action items, answer questions about your workspace, and more. What would you like to do?" }
   ]);
+  // Current input text
   const [input, setInput] = useState('');
+  // Loading state during API call
   const [loading, setLoading] = useState(false);
+  // Ref for auto-scrolling to bottom
   const bottomRef = useRef(null);
 
+  // Fetch pages for context - limit to 5 most recent
   const { data: pages = [] } = useQuery({
     queryKey: ['pages', currentWorkspaceId],
-    queryFn: () => base44.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
+    queryFn: () => db.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Fetch tasks for context - only incomplete ones
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', currentWorkspaceId],
-    queryFn: () => base44.entities.Task.filter({ workspace_id: currentWorkspaceId }),
+    queryFn: () => db.entities.Task.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
+  // Auto-scroll when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // Send message to AI - builds context and calls LLM
   const sendMessage = async (text) => {
     const userText = text || input.trim();
     if (!userText || loading) return;
     setInput('');
 
+    // Add user message to history
     const newMessages = [...messages, { role: 'user', content: userText }];
     setMessages(newMessages);
     setLoading(true);
 
-    // Build context
+    // Build workspace context for the AI
     const pagesSummary = pages.slice(0, 5).map(p => `- "${p.title}" (${p.page_type})`).join('\n');
     const tasksSummary = tasks.filter(t => t.status !== 'done').slice(0, 10).map(t =>
       `- "${t.title}" [${t.priority} priority, ${t.status}${t.assignee_email ? `, assigned to ${t.assignee_email}` : ''}]`
@@ -89,7 +99,7 @@ Be concise, helpful and actionable. Format responses with markdown when helpful.
 
     const prompt = `${systemContext}\n\nConversation so far:\n${newMessages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')}\n\nAssistant:`;
 
-    const response = await base44.integrations.Core.InvokeLLM({ prompt });
+    const response = await db.integrations.Core.InvokeLLM(prompt);
     setMessages(prev => [...prev, { role: 'assistant', content: response }]);
     setLoading(false);
   };

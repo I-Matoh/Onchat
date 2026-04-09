@@ -29,21 +29,29 @@ const AuthContext = createContext();
  * 5. Mark loading as complete once all checks finish
  */
 export const AuthProvider = ({ children }) => {
+  // State for current authenticated user
   const [user, setUser] = useState(null);
+  // Boolean flag for auth status
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  // Loading state for user validation (checked after session exists)
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  // Loading state for initial app/public settings load
   const [isLoadingPublicSettings, setIsLoadingPublicSettings] = useState(true);
+  // Auth error object with type and message
   const [authError, setAuthError] = useState(null);
 
+  // Run on mount - check session and validate user
   useEffect(() => {
     checkAppState();
   }, []);
 
+  // Main entry point - checks for existing session then validates user
   const checkAppState = async () => {
     try {
       setIsLoadingPublicSettings(true);
       setAuthError(null);
       
+      // Check if browser has valid session cookie
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
@@ -64,6 +72,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Validates current user via API - throws on 401/403
   const checkUserAuth = async () => {
     try {
       setIsLoadingAuth(true);
@@ -76,6 +85,7 @@ export const AuthProvider = ({ children }) => {
       setIsLoadingAuth(false);
       setIsAuthenticated(false);
       
+      // Clear session if unauthorized
       if (error.status === 401 || error.status === 403) {
         setAuthError({
           type: 'auth_required',
@@ -85,6 +95,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Logout handler - clears state and optionally redirects
   const logout = async (shouldRedirect = true) => {
     try {
       await signOut();
@@ -99,10 +110,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Redirect to login with return URL
   const navigateToLogin = () => {
     redirectToLogin(window.location.href);
   };
 
+  // Provide auth state and methods to consuming components
   return (
     <AuthContext.Provider value={{ 
       user, 

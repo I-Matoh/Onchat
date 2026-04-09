@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -22,7 +22,7 @@ export default function AIPageModal({ pageTitle, pageContent, onClose, onInsert 
     const fullPrompt = `${promptText}\n\nPage Title: ${pageTitle}\n\nContent: ${pageContent || '(empty page)'}`;
     setLoading(true);
     setResult('');
-    const res = await base44.integrations.Core.InvokeLLM({ prompt: fullPrompt });
+    const res = await db.integrations.Core.InvokeLLM({ prompt: fullPrompt });
     setResult(res);
     setLoading(false);
   };

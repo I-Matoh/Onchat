@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useOutletContext, useNavigate, useSearchParams } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,13 +41,17 @@ const modules = {
 };
 
 export default function PageEditor() {
+  // URL param: 'new' for create mode, or actual page ID for edit
   const { pageId } = useParams();
   const [searchParams] = useSearchParams();
+  // User and workspace from parent layout
   const { user, currentWorkspaceId } = useOutletContext();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Flag to distinguish create vs update flow
   const isNew = pageId === 'new';
 
+  // Local state for editor fields
   const [title, setTitle] = useState('Untitled');
   const [content, setContent] = useState('');
   const [icon, setIcon] = useState('📄');
@@ -57,13 +61,15 @@ export default function PageEditor() {
   const [showAI, setShowAI] = useState(false);
   const [showIconPicker, setShowIconPicker] = useState(false);
 
+  // Fetch existing page data when editing
   const { data: page } = useQuery({
     queryKey: ['page', pageId],
-    queryFn: () => base44.entities.Page.filter({ id: pageId }),
+    queryFn: () => db.entities.Page.filter({ id: pageId }),
     enabled: !isNew && !!pageId,
     select: (data) => data[0],
   });
 
+  // Populate form when page data loads
   useEffect(() => {
     if (page) {
       setTitle(page.title || 'Untitled');
@@ -73,11 +79,12 @@ export default function PageEditor() {
     }
   }, [page]);
 
+  // Save handler - creates new or updates existing
   const save = useCallback(async () => {
     if (!currentWorkspaceId) return;
     setSaving(true);
     if (isNew) {
-      const newPage = await base44.entities.Page.create({
+      const newPage = await db.entities.Page.create({
         workspace_id: currentWorkspaceId,
         title: title || 'Untitled',
         content,
@@ -88,7 +95,7 @@ export default function PageEditor() {
       queryClient.invalidateQueries({ queryKey: ['pages', currentWorkspaceId] });
       navigate(`/pages/${newPage.id}?w=${currentWorkspaceId}`, { replace: true });
     } else {
-      await base44.entities.Page.update(pageId, {
+      await db.entities.Page.update(pageId, {
         title: title || 'Untitled',
         content,
         icon,
@@ -104,7 +111,7 @@ export default function PageEditor() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this page?')) return;
-    await base44.entities.Page.update(pageId, { is_archived: true });
+    await db.entities.Page.update(pageId, { is_archived: true });
     queryClient.invalidateQueries({ queryKey: ['pages', currentWorkspaceId] });
     navigate(`/?w=${currentWorkspaceId}`);
   };

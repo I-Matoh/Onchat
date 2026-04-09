@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { base44 } from '@/api/supabaseAdapter';
+import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  MessageSquare, FileText, CheckSquare, Sparkles, Search,
+  MessageSquare, CheckSquare, Sparkles, Search,
   Plus, ChevronDown, ChevronRight, LogOut, Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,12 +20,12 @@ export default function AppSidebar({ user, currentWorkspaceId, onWorkspaceChange
 
   const { data: workspaces = [] } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: () => base44.entities.Workspace.list(),
+    queryFn: () => db.entities.Workspace.list(),
   });
 
   const { data: pages = [] } = useQuery({
     queryKey: ['pages', currentWorkspaceId],
-    queryFn: () => base44.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
+    queryFn: () => db.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
     enabled: !!currentWorkspaceId,
   });
 
@@ -121,7 +120,7 @@ export default function AppSidebar({ user, currentWorkspaceId, onWorkspaceChange
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
             </div>
             <button
-              onClick={() => base44.auth.logout()}
+              onClick={() => db.auth.logout()}
               className="text-muted-foreground hover:text-foreground transition-colors select-none min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Logout"
             >

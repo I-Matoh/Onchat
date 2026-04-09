@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
-import { ChevronDown, Plus, Check } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ChevronDown, Check } from 'lucide-react';
 
 export default function WorkspaceDrawer({ workspaces, currentWorkspaceId, onWorkspaceChange, onCreateNew }) {
   const [open, setOpen] = useState(false);
