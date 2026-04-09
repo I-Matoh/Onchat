@@ -5,6 +5,7 @@ import { FileText, MessageSquare, CheckSquare, Plus, ArrowRight, Sparkles } from
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatDistanceToNow } from 'date-fns';
+import ActivityFeed from '@/components/home/ActivityFeed';
 
 /**
  * Home - Dashboard/landing page for authenticated users

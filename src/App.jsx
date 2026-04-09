@@ -14,7 +14,7 @@ import PageEditor from '@/Pages/PageEditor';
 import Tasks from '@/Pages/Task';
 import AIAssistant from '@/Pages/AIAssistant';
 import Search from '@/Pages/Search';
-
+import Landing from '@/pages/Landing';
 /**
  * AuthenticatedApp - Handles routing and auth state for logged-in users
  * 
@@ -50,6 +50,15 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+  }
+  
+  // Show landing for unauthenticated users (auth_required means app needs login)
+  if (!isLoadingAuth && !isLoadingPublicSettings && authError?.type === 'auth_required') {
+    return (
+      <Routes>
+        <Route path="*" element={<Landing />} />
+      </Routes>
+    );
   }
 
   // Main route definitions - MainLayout provides sidebar and outlet context
