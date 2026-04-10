@@ -1,5 +1,11 @@
 import React from 'react';
 
+/**
+ * UserNotRegisteredError - Displayed when authenticated user is not authorized to use the app
+ * 
+ * Shows a friendly message explaining access restrictions and provides
+ * troubleshooting steps for the user.
+ */
 const UserNotRegisteredError = () => {
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-b from-white to-slate-50">

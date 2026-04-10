@@ -5,9 +5,25 @@ import { FileText, MessageSquare, CheckSquare, Clock } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
+/**
+ * ActivityFeed - Real-time activity stream for the workspace
+ * 
+ * Aggregates recent activity from:
+ * - Pages: creation and updates
+ * - Tasks: status changes and completions
+ * - Messages: new chat messages
+ * 
+ * Features:
+ * - Real-time updates via Supabase subscriptions
+ * - Polling fallback every 10 seconds
+ * - Sorted by timestamp, latest first (capped at 12 items)
+ */
+
+// Combine and normalize data from all three sources into activity events
 function buildEvents(pages, tasks, messages) {
   const events = [];
 
+  // Convert pages to events
   pages.forEach(p => {
     events.push({
       id: `page-${p.id}`,
@@ -18,6 +34,7 @@ function buildEvents(pages, tasks, messages) {
     });
   });
 
+  // Convert tasks to events
   tasks.forEach(t => {
     const statusLabel = t.status === 'done' ? 'completed' : t.status === 'in_progress' ? 'started' : 'created';
     events.push({
@@ -29,22 +46,25 @@ function buildEvents(pages, tasks, messages) {
     });
   });
 
+  // Convert messages to events
   messages.forEach(m => {
     events.push({
       id: `msg-${m.id}`,
       type: 'message',
       label: `${m.sender_name || m.sender_email} sent a message`,
-      sub: m.content?.slice(0, 60) || '',
+      sub: m.content?.slice(0, 60) || '',  // Truncate long messages
       date: m.created_date,
     });
   });
 
+  // Filter out entries without dates, sort newest first, keep top 12
   return events
     .filter(e => e.date)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, 12);
 }
 
+// Visual styling config for each activity type
 const TYPE_STYLES = {
   page:    { icon: FileText,      bg: 'bg-violet-50 dark:bg-violet-500/10', color: 'text-violet-500' },
   task:    { icon: CheckSquare,   bg: 'bg-green-50 dark:bg-green-500/10',   color: 'text-green-500' },
@@ -54,18 +74,21 @@ const TYPE_STYLES = {
 export default function ActivityFeed({ workspaceId }) {
   const queryClient = useQueryClient();
 
+  // Fetch recent pages (last edited first)
   const { data: pages = [] } = useQuery({
     queryKey: ['pages', workspaceId],
     queryFn: () => db.entities.Page.filter({ workspace_id: workspaceId, is_archived: false }),
     enabled: !!workspaceId,
   });
 
+  // Fetch all tasks
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', workspaceId],
     queryFn: () => db.entities.Task.filter({ workspace_id: workspaceId }),
     enabled: !!workspaceId,
   });
 
+  // Fetch last 20 messages, poll every 10s as backup for real-time
   const { data: messages = [] } = useQuery({
     queryKey: ['recent-messages', workspaceId],
     queryFn: () => db.entities.Message.filter({ workspace_id: workspaceId }, '-created_date', 20),
@@ -73,17 +96,19 @@ export default function ActivityFeed({ workspaceId }) {
     refetchInterval: 10000,
   });
 
-  // Real-time subscriptions
+  // Subscribe to real-time changes - invalidate queries on any change
   useEffect(() => {
     if (!workspaceId) return;
     const unsubs = [
       db.entities.Page.subscribe(() => queryClient.invalidateQueries({ queryKey: ['pages', workspaceId] })),
       db.entities.Task.subscribe(() => queryClient.invalidateQueries({ queryKey: ['tasks', workspaceId] })),
       db.entities.Message.subscribe((e) => {
+        // Only invalidate if message belongs to this workspace
         if (e.data?.workspace_id === workspaceId)
           queryClient.invalidateQueries({ queryKey: ['recent-messages', workspaceId] });
       }),
     ];
+    // Cleanup all subscriptions on unmount or workspace change
     return () => unsubs.forEach(u => u());
   }, [workspaceId]);
 

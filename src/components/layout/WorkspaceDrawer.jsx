@@ -2,10 +2,20 @@ import { useState } from 'react';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger } from '@/components/ui/drawer';
 import { ChevronDown, Check } from 'lucide-react';
 
+/**
+ * WorkspaceDrawer - Mobile-friendly workspace switcher
+ * 
+ * Uses a bottom drawer on mobile for easy thumb access.
+ * Shows current workspace name with icon, allows switching
+ * to other workspaces or creating a new one.
+ */
 export default function WorkspaceDrawer({ workspaces, currentWorkspaceId, onWorkspaceChange, onCreateNew }) {
+  // Drawer open/closed state
   const [open, setOpen] = useState(false);
+  // Find current workspace from list
   const current = workspaces.find(w => w.id === currentWorkspaceId);
 
+  // Handle workspace selection - close drawer after
   const handleSelect = (id) => {
     onWorkspaceChange(id);
     setOpen(false);

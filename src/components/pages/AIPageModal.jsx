@@ -5,6 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Sparkles, Loader2, Copy, Check } from 'lucide-react';
 
+/**
+ * AIPageModal - AI-powered page content assistant
+ * 
+ * Features:
+ * - Quick actions: summarize, extract action items, improve writing, outline
+ * - Custom prompt input for freeform AI queries
+ * - Copy result or insert directly into page
+ */
+
+// Pre-defined AI actions for common tasks
 const QUICK_ACTIONS = [
   { label: 'Summarize', prompt: 'Summarize the following content concisely:' },
   { label: 'Extract Action Items', prompt: 'Extract all action items from the following content as a bullet list:' },
@@ -13,24 +23,40 @@ const QUICK_ACTIONS = [
 ];
 
 export default function AIPageModal({ pageTitle, pageContent, onClose, onInsert }) {
+  // User's custom prompt input
   const [prompt, setPrompt] = useState('');
+  // AI response text
   const [result, setResult] = useState('');
+  // Loading indicator during AI processing
   const [loading, setLoading] = useState(false);
+  // Copy button state (shows "Copied!" briefly)
   const [copied, setCopied] = useState(false);
 
+  // Run AI with given prompt + page context
   const runAI = async (promptText) => {
+    // Combine user prompt with current page content for context
     const fullPrompt = `${promptText}\n\nPage Title: ${pageTitle}\n\nContent: ${pageContent || '(empty page)'}`;
+    if (!promptText?.trim()) return;
+
     setLoading(true);
     setResult('');
-    const res = await db.integrations.Core.InvokeLLM({ prompt: fullPrompt });
-    setResult(res);
-    setLoading(false);
+
+    try {
+      const res = await db.integrations.Core.InvokeLLM(fullPrompt);
+      setResult(res);
+    } catch (error) {
+      console.error('AI page action failed:', error);
+      setResult(error.message || 'AI request failed.');
+    } finally {
+      setLoading(false);
+    }
   };
 
+  // Copy result to clipboard
   const handleCopy = () => {
     navigator.clipboard.writeText(result);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 2000);  // Reset after 2s
   };
 
   return (

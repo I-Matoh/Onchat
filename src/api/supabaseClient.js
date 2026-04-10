@@ -50,7 +50,19 @@ export const redirectToLogin = (redirectUrl) => {
   window.location.href = loginUrl.toString();
 };
 
-export const invokeGroq = async (prompt, model = 'llama-3.3-70b-versatile') => {
+export const invokeGroq = async (input, fallbackModel = 'llama-3.3-70b-versatile') => {
+  const request = typeof input === 'string'
+    ? { prompt: input, model: fallbackModel }
+    : { prompt: input?.prompt ?? '', model: input?.model ?? fallbackModel };
+
+  if (!request.prompt?.trim()) {
+    throw new Error('A prompt is required to invoke the AI assistant.');
+  }
+
+  if (!groqApiKey) {
+    throw new Error('Missing VITE_GROQ_API_KEY. Set it in your environment before using AI features.');
+  }
+
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -58,8 +70,8 @@ export const invokeGroq = async (prompt, model = 'llama-3.3-70b-versatile') => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model,
-      messages: [{ role: 'user', content: prompt }],
+      model: request.model,
+      messages: [{ role: 'user', content: request.prompt }],
       temperature: 0.7,
       max_tokens: 2048,
     }),

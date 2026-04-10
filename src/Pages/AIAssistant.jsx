@@ -2,115 +2,119 @@ import { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Sparkles, Send, Loader2, User, Bot, Trash2 } from 'lucide-react';
+import { Sparkles, Send, Loader2, User, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 
 /**
  * AIAssistant - LLM-powered workspace assistant
  * 
- * This component provides an AI chat interface that can:
- * - Access workspace context (pages, tasks, user info)
- * - Generate contextual responses based on workspace data
- * - Render markdown responses with syntax highlighting
- * 
- * Implementation details:
- * - Fetches workspace data (pages, tasks) to build context
- * - Constructs a system prompt with workspace information
- * - Sends conversation history + new message to LLM
- * - Displays streaming-like UI with loading state
- * - Provides starter prompts for common actions
- * 
- * Note: The actual LLM invocation uses Groq API
- * which should be replaced with actual API integration in production.
+ * Features:
+ * - Context-aware responses using workspace data (pages, tasks)
+ * - Chat-style UI with message history
+ * - Markdown rendering for AI responses
+ * - Quick action prompts for common tasks
  */
 
-/** Pre-defined prompt suggestions shown to new users */
+// Starter prompts shown when conversation is empty
 const STARTER_PROMPTS = [
-  "Summarize our recent conversations",
-  "What tasks are overdue?",
-  "Help me write meeting notes",
-  "Draft a project status update",
-  "Extract action items from recent discussions",
+  'Summarize our recent conversations',
+  'What tasks are overdue?',
+  'Help me write meeting notes',
+  'Draft a project status update',
+  'Extract action items from recent discussions',
 ];
 
+// Initial greeting message
+const INITIAL_MESSAGE = {
+  role: 'assistant',
+  content: "Hi! I'm your AI assistant. I can help you summarize documents, extract action items, answer questions about your workspace and more. What would you like to do?"
+};
+
 export default function AIAssistant() {
-  // Get user and workspace from parent layout
+  // Workspace context from parent layout
   const { user, currentWorkspaceId } = useOutletContext();
-  // Chat message history - starts with welcome message
-  const [messages, setMessages] = useState([
-    { role: 'assistant', content: "Hi! I'm your AI assistant. I can help you summarize documents, extract action items, answer questions about your workspace, and more. What would you like to do?" }
-  ]);
+  // Chat message history
+  const [messages, setMessages] = useState([INITIAL_MESSAGE]);
   // Current input text
   const [input, setInput] = useState('');
-  // Loading state during API call
+  // Loading state during AI response
   const [loading, setLoading] = useState(false);
-  // Ref for auto-scrolling to bottom
+  // Auto-scroll anchor
   const bottomRef = useRef(null);
 
-  // Fetch pages for context - limit to 5 most recent
   const { data: pages = [] } = useQuery({
     queryKey: ['pages', currentWorkspaceId],
     queryFn: () => db.entities.Page.filter({ workspace_id: currentWorkspaceId, is_archived: false }),
     enabled: !!currentWorkspaceId,
   });
 
-  // Fetch tasks for context - only incomplete ones
   const { data: tasks = [] } = useQuery({
     queryKey: ['tasks', currentWorkspaceId],
     queryFn: () => db.entities.Task.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
-  // Auto-scroll when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, loading]);
 
-  // Send message to AI - builds context and calls LLM
   const sendMessage = async (text) => {
-    const userText = text || input.trim();
+    const userText = (text ?? input).trim();
     if (!userText || loading) return;
-    setInput('');
 
-    // Add user message to history
+    setInput('');
     const newMessages = [...messages, { role: 'user', content: userText }];
     setMessages(newMessages);
     setLoading(true);
 
-    // Build workspace context for the AI
-    const pagesSummary = pages.slice(0, 5).map(p => `- "${p.title}" (${p.page_type})`).join('\n');
-    const tasksSummary = tasks.filter(t => t.status !== 'done').slice(0, 10).map(t =>
-      `- "${t.title}" [${t.priority} priority, ${t.status}${t.assignee_email ? `, assigned to ${t.assignee_email}` : ''}]`
-    ).join('\n');
+    try {
+      const pagesSummary = pages
+        .slice(0, 5)
+        .map((page) => `- "${page.title}" (${page.page_type})`)
+        .join('\n');
+      const tasksSummary = tasks
+        .filter((task) => task.status !== 'done')
+        .slice(0, 10)
+        .map((task) => `- "${task.title}" [${task.priority} priority, ${task.status}${task.assignee_email ? `, assigned to ${task.assignee_email}` : ''}]`)
+        .join('\n');
 
-    const systemContext = `You are an AI assistant for a team workspace called OneChat.
+      const systemContext = `You are an AI assistant for a team workspace called OneChat.
 Workspace context:
 Pages (${pages.length} total):
 ${pagesSummary || 'No pages yet'}
 
-Open Tasks (${tasks.filter(t => t.status !== 'done').length} total):
+Open Tasks (${tasks.filter((task) => task.status !== 'done').length} total):
 ${tasksSummary || 'No open tasks'}
 
 Current user: ${user?.full_name || user?.email}
 Be concise, helpful and actionable. Format responses with markdown when helpful.`;
 
-    const prompt = `${systemContext}\n\nConversation so far:\n${newMessages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n')}\n\nAssistant:`;
+      const prompt = `${systemContext}\n\nConversation so far:\n${newMessages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content}`).join('\n')}\n\nAssistant:`;
+      const response = await db.integrations.Core.InvokeLLM(prompt);
 
-    const response = await db.integrations.Core.InvokeLLM(prompt);
-    setMessages(prev => [...prev, { role: 'assistant', content: response }]);
-    setLoading(false);
+      setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
+    } catch (error) {
+      console.error('AI assistant request failed:', error);
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: error.message || 'The AI assistant could not complete that request.' },
+      ]);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
   };
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
       <div className="px-6 py-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-primary/10 rounded-xl flex items-center justify-center">
@@ -122,7 +126,7 @@ Be concise, helpful and actionable. Format responses with markdown when helpful.
           </div>
         </div>
         <button
-          onClick={() => setMessages([{ role: 'assistant', content: "Hi! How can I help you today?" }])}
+          onClick={() => setMessages([INITIAL_MESSAGE])}
           className="text-muted-foreground hover:text-foreground transition-colors"
           title="Clear conversation"
         >
@@ -130,30 +134,30 @@ Be concise, helpful and actionable. Format responses with markdown when helpful.
         </button>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
-        {messages.map((msg, i) => (
-          <div key={i} className={cn("flex gap-3", msg.role === 'user' && "flex-row-reverse")}>
+        {messages.map((message, index) => (
+          <div key={index} className={cn('flex gap-3', message.role === 'user' && 'flex-row-reverse')}>
             <div className={cn(
-              "w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5",
-              msg.role === 'user' ? "bg-primary text-primary-foreground" : "bg-accent text-accent-foreground"
+              'w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5',
+              message.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-accent text-accent-foreground'
             )}>
-              {msg.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {message.role === 'user' ? <User className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
             </div>
             <div className={cn(
-              "max-w-[80%] rounded-2xl px-4 py-2.5 text-sm",
-              msg.role === 'user'
-                ? "bg-primary text-primary-foreground rounded-tr-sm"
-                : "bg-card border border-border text-foreground rounded-tl-sm"
+              'max-w-[80%] rounded-2xl px-4 py-2.5 text-sm',
+              message.role === 'user'
+                ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                : 'bg-card border border-border text-foreground rounded-tl-sm'
             )}>
-              {msg.role === 'assistant' ? (
+              {message.role === 'assistant' ? (
                 <ReactMarkdown className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-                  {msg.content}
+                  {message.content}
                 </ReactMarkdown>
-              ) : msg.content}
+              ) : message.content}
             </div>
           </div>
         ))}
+
         {loading && (
           <div className="flex gap-3">
             <div className="w-7 h-7 rounded-lg bg-accent flex items-center justify-center shrink-0">
@@ -164,30 +168,29 @@ Be concise, helpful and actionable. Format responses with markdown when helpful.
             </div>
           </div>
         )}
+
         <div ref={bottomRef} />
       </div>
 
-      {/* Starter prompts */}
       {messages.length <= 1 && (
         <div className="px-4 pb-2 flex flex-wrap gap-1.5">
-          {STARTER_PROMPTS.map(p => (
+          {STARTER_PROMPTS.map((prompt) => (
             <button
-              key={p}
-              onClick={() => sendMessage(p)}
+              key={prompt}
+              onClick={() => sendMessage(prompt)}
               className="text-xs px-3 py-1.5 bg-accent text-accent-foreground rounded-full hover:bg-accent/80 transition-colors"
             >
-              {p}
+              {prompt}
             </button>
           ))}
         </div>
       )}
 
-      {/* Input */}
       <div className="p-3 border-t border-border">
         <div className="flex items-end gap-2 bg-muted/60 rounded-xl px-3 py-2 border border-border">
           <Textarea
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={(event) => setInput(event.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask anything..."
             className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-0 text-sm resize-none min-h-0"

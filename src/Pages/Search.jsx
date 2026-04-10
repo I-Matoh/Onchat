@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
@@ -25,7 +25,7 @@ import { formatDistanceToNow } from 'date-fns';
  * Supabase full-text search or external search service (Algolia).
  */
 export default function Search() {
-  const { user, currentWorkspaceId } = useOutletContext();
+  const { currentWorkspaceId } = useOutletContext();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
 
@@ -50,15 +50,15 @@ export default function Search() {
   const q = query.toLowerCase().trim();
 
   const results = q ? [
-    ...( (filter === 'all' || filter === 'pages') ? pages.filter(p =>
-      p.title?.toLowerCase().includes(q) || p.content?.toLowerCase().includes(q)
-    ).map(p => ({ type: 'page', item: p, href: `/pages/${p.id}?w=${currentWorkspaceId}` })) : []),
-    ...( (filter === 'all' || filter === 'tasks') ? tasks.filter(t =>
-      t.title?.toLowerCase().includes(q) || t.description?.toLowerCase().includes(q)
-    ).map(t => ({ type: 'task', item: t, href: `/tasks?w=${currentWorkspaceId}` })) : []),
-    ...( (filter === 'all' || filter === 'channels') ? conversations.filter(c =>
-      c.name?.toLowerCase().includes(q)
-    ).map(c => ({ type: 'channel', item: c, href: `/chat?w=${currentWorkspaceId}` })) : []),
+    ...((filter === 'all' || filter === 'pages') ? pages.filter((page) =>
+      page.title?.toLowerCase().includes(q) || page.content?.toLowerCase().includes(q)
+    ).map((page) => ({ type: 'page', item: page, href: `/pages/${page.id}?w=${currentWorkspaceId}` })) : []),
+    ...((filter === 'all' || filter === 'tasks') ? tasks.filter((task) =>
+      task.title?.toLowerCase().includes(q) || task.description?.toLowerCase().includes(q)
+    ).map((task) => ({ type: 'task', item: task, href: `/tasks?w=${currentWorkspaceId}` })) : []),
+    ...((filter === 'all' || filter === 'channels') ? conversations.filter((conversation) =>
+      conversation.name?.toLowerCase().includes(q)
+    ).map((conversation) => ({ type: 'channel', item: conversation, href: `/chat?w=${currentWorkspaceId}` })) : []),
   ] : [];
 
   const FILTERS = [
@@ -73,43 +73,43 @@ export default function Search() {
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-cal font-semibold text-foreground mb-6">Search</h1>
 
-        {/* Search Input */}
         <div className="relative mb-4">
           <SearchIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground" />
           <Input
             value={query}
-            onChange={e => setQuery(e.target.value)}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="Search pages, tasks, channels..."
             className="pl-10 pr-9 h-11 text-base"
             autoFocus
           />
           {query && (
-            <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button
+              onClick={() => setQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
               <X className="w-4 h-4" />
             </button>
           )}
         </div>
 
-        {/* Filters */}
         <div className="flex gap-2 mb-6">
-          {FILTERS.map(f => (
+          {FILTERS.map((item) => (
             <button
-              key={f.value}
-              onClick={() => setFilter(f.value)}
+              key={item.value}
+              onClick={() => setFilter(item.value)}
               className={cn(
                 "flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-full font-medium transition-colors",
-                filter === f.value
+                filter === item.value
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground"
               )}
             >
-              {f.icon && <f.icon className="w-3.5 h-3.5" />}
-              {f.label}
+              {item.icon && <item.icon className="w-3.5 h-3.5" />}
+              {item.label}
             </button>
           ))}
         </div>
 
-        {/* Results */}
         {!q ? (
           <div className="text-center py-16">
             <SearchIcon className="w-12 h-12 text-muted-foreground/30 mx-auto mb-3" />
@@ -123,7 +123,7 @@ export default function Search() {
         ) : (
           <div className="space-y-1.5">
             <p className="text-xs text-muted-foreground mb-3">{results.length} results</p>
-            {results.map(({ type, item, href }, i) => (
+            {results.map(({ type, item, href }) => (
               <Link key={`${type}-${item.id}`} to={href}>
                 <div className="flex items-center gap-3 p-3.5 bg-card border border-border rounded-xl hover:border-primary/40 hover:shadow-sm transition-all group">
                   <div className={cn(
@@ -141,7 +141,8 @@ export default function Search() {
                       {type === 'channel' ? `#${item.name}` : item.title || item.name}
                     </p>
                     <p className="text-xs text-muted-foreground capitalize">
-                      {type} • {formatDistanceToNow(new Date(item.updated_date), { addSuffix: true })}
+                      {type}
+                      {getRelativeTime(item) ? ` • ${getRelativeTime(item)}` : ''}
                     </p>
                   </div>
                 </div>
@@ -152,4 +153,14 @@ export default function Search() {
       </div>
     </div>
   );
+}
+
+function getRelativeTime(item) {
+  const timestamp = item.updated_date || item.created_date || item.last_message_at || item.due_date;
+  if (!timestamp) return null;
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return formatDistanceToNow(date, { addSuffix: true });
 }

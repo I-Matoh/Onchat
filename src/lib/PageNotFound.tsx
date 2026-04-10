@@ -2,11 +2,21 @@ import { useLocation } from 'react-router-dom';
 import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 
+/**
+ * PageNotFound - 404 error page component
+ * 
+ * Features:
+ * - Displays friendly 404 message with the attempted path
+ * - Shows admin-specific hint about AI not implementing the page
+ * - Check user auth status to determine if they can see admin info
+ */
 
 export default function PageNotFound({}) {
+    // Extract the attempted path from URL
     const location = useLocation();
     const pageName = location.pathname.substring(1);
 
+    // Check if user is authenticated (for admin hint display)
     const { data: authData, isFetched } = useQuery({
         queryKey: ['user'],
         queryFn: async () => {
@@ -39,7 +49,7 @@ export default function PageNotFound({}) {
                         </p>
                     </div>
                     
-                    {/* Admin Note */}
+                    {/* Admin Note - only visible to authenticated admins */}
                     {isFetched && authData.isAuthenticated && authData.user?.role === 'admin' && (
                         <div className="mt-8 p-4 bg-slate-100 rounded-lg border border-slate-200">
                             <div className="flex items-start space-x-3">

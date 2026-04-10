@@ -7,16 +7,26 @@ import {
 import { Trash2 } from 'lucide-react';
 import { db } from '@/api/supabaseAdapter';
 
+/**
+ * DeleteAccountDialog - Danger zone component for account deletion
+ * 
+ * Shows a confirmation dialog before permanently deleting the user's
+ * account and all associated data via Supabase Admin API.
+ */
 export default function DeleteAccountDialog() {
+  // Loading state during deletion process
   const [loading, setLoading] = useState(false);
 
+  // Delete account via admin API, then log user out
   const handleDelete = async () => {
     setLoading(true);
     try {
+      // Admin API call to delete user from Supabase Auth
       await db.auth.deleteAccount?.();
     } catch (e) {
-      // fallback: just log out
+      // Fallback: if delete fails, just log out anyway
     }
+    // Regardless of delete success, clear session and redirect
     db.auth.logout('/');
   };
 

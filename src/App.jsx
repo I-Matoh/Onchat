@@ -14,7 +14,7 @@ import PageEditor from '@/Pages/PageEditor';
 import Tasks from '@/Pages/Task';
 import AIAssistant from '@/Pages/AIAssistant';
 import Search from '@/Pages/Search';
-import Landing from '@/pages/Landing';
+import Landing from '@/Pages/Landing';
 /**
  * AuthenticatedApp - Handles routing and auth state for logged-in users
  * 
@@ -26,7 +26,7 @@ import Landing from '@/pages/Landing';
  */
 const AuthenticatedApp = () => {
   // Auth state from context - includes loading states, user object, and any auth errors
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { isLoadingAuth, isLoadingPublicSettings, isAuthenticated, authError } = useAuth();
 
   // Show loading spinner while checking public settings or auth status
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -46,14 +46,11 @@ const AuthenticatedApp = () => {
   if (authError) {
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
-    } else if (authError.type === 'auth_required') {
-      navigateToLogin();
-      return null;
     }
   }
   
-  // Show landing for unauthenticated users (auth_required means app needs login)
-  if (!isLoadingAuth && !isLoadingPublicSettings && authError?.type === 'auth_required') {
+  // Show the public marketing site when there is no authenticated session
+  if (!isLoadingAuth && !isLoadingPublicSettings && !isAuthenticated) {
     return (
       <Routes>
         <Route path="*" element={<Landing />} />

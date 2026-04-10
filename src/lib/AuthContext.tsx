@@ -1,6 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase, getCurrentUser, signOut, redirectToLogin } from '@/api/supabaseClient';
-import { appParams } from '@/lib/app-params';
 
 /**
  * AuthContext - Global authentication state management
@@ -16,7 +15,16 @@ import { appParams } from '@/lib/app-params';
  * the UI to show different loading states - first loading app config,
  * then validating user session.
  */
-const AuthContext = createContext();
+const AuthContext = createContext({
+  user: null,
+  isAuthenticated: false,
+  isLoadingAuth: true,
+  isLoadingPublicSettings: true,
+  authError: null,
+  logout: async () => {},
+  navigateToLogin: () => {},
+  checkAppState: async () => {},
+});
 
 /**
  * AuthProvider - Wraps the app to provide authentication state and methods

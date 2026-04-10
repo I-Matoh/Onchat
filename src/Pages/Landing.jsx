@@ -9,6 +9,11 @@ import {
 import { cn } from '@/lib/utils';
 
 /* ─── Helpers ──────────────────────────────────────── */
+/**
+ * useScrollReveal - IntersectionObserver hook for scroll animations
+ * Triggers visibility when element enters viewport (12% threshold)
+ * Used by the Reveal component for staggered entrance animations
+ */
 function useScrollReveal() {
   const ref = useRef(null);
   const [visible, setVisible] = useState(false);
@@ -25,6 +30,10 @@ function useScrollReveal() {
   return [ref, visible];
 }
 
+/**
+ * Reveal - Wrapper component that animates children into view
+ * Uses CSS transitions with optional delay for staggered effects
+ */
 function Reveal({ children, className, delay = 0 }) {
   const [ref, visible] = useScrollReveal();
   return (
@@ -423,7 +432,7 @@ export default function Landing() {
         <Reveal delay={160}>
           <p className="mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
             Replace Slack, Notion, and Asana with a single real-time platform.
-            Chat, docs, tasks, and AI — all in one tab, always in sync.
+            Chat, docs, tasks and AI — all in one tab, always in sync.
           </p>
         </Reveal>
 

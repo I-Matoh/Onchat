@@ -4,7 +4,7 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  logLevel: 'error',
+  logLevel: 'info',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

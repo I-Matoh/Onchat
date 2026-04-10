@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useQueryClient } from '@tanstack/react-query';
+import { db } from '@/api/supabaseAdapter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,24 +23,32 @@ import { Label } from '@/components/ui/label';
  * - onCreated: callback with created workspace data
  */
 export default function CreateWorkspaceModal({ user, onClose, onCreated }) {
+  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(false);
+
   // Handle form submit - create workspace directly via Supabase
   const handleSubmit = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const name = formData.get('name');
+    const name = formData.get('name')?.toString().trim();
+
+    if (!name) {
+      return;
+    }
     
     try {
-      // Insert new workspace with current user as owner
-      const { data, error } = await supabase
-        .from('workspaces')
-        .insert({ name, owner_id: user?.id })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      onCreated?.(data);
+      setLoading(true);
+      const workspace = await db.entities.Workspace.create({
+        name,
+        owner_email: user?.email,
+        member_emails: user?.email ? [user.email] : [],
+      });
+      await queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      onCreated?.(workspace);
     } catch (err) {
       console.error('Failed to create workspace:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -55,10 +66,12 @@ export default function CreateWorkspaceModal({ user, onClose, onCreated }) {
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit">Create</Button>
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Creating...' : 'Create'}
+            </Button>
           </div>
         </form>
       </DialogContent>
