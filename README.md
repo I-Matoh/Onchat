@@ -14,7 +14,9 @@ Onchat is a collaborative workspace application with real-time messaging, task m
 ```
 VITE_SUPABASE_URL=your-supabase-project-url
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-VITE_SUPABASE_LOGIN_URL=/login
+VITE_SUPABASE_LOGIN_URL=/signin
+VITE_SUPABASE_SIGNUP_URL=/signup
+
 VITE_GROQ_API_KEY=your-groq-api-key
 ```
 

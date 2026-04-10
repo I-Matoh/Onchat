@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
-import { db } from '@/api/supabaseAdapter';
+import { useNavigate } from 'react-router-dom';
 import {
   MessageSquare, FileText, CheckSquare, Search, Zap, Shield,
   Users, ArrowRight, ChevronDown, Star, Check, Menu, X, Globe,
@@ -181,7 +180,7 @@ const FAQS = [
 const LOGOS = ['Vercel', 'Stripe', 'Linear', 'Loom', 'Framer', 'Raycast'];
 
 /* ─── Sub-components ────────────────────────────────── */
-function Navbar({ onCTA }) {
+function Navbar({ onSignIn, onSignUp }) {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -223,10 +222,10 @@ function Navbar({ onCTA }) {
 
         {/* Desktop CTAs */}
         <div className="hidden md:flex items-center gap-3">
-          <button onClick={() => db.auth.redirectToLogin()} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors select-none">
+          <button onClick={onSignIn} className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors select-none">
             Sign in
           </button>
-          <button onClick={() => db.auth.redirectToLogin()} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors select-none shadow-sm">
+          <button onClick={onSignUp} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors select-none shadow-sm">
             Start Free <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -246,7 +245,10 @@ function Navbar({ onCTA }) {
               {l.label}
             </a>
           ))}
-          <button onClick={() => db.auth.redirectToLogin()} className="mt-2 flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold select-none">
+          <button onClick={onSignIn} className="w-full px-4 py-2.5 rounded-lg border border-border text-sm font-medium text-foreground select-none">
+            Sign in
+          </button>
+          <button onClick={onSignUp} className="mt-2 flex items-center justify-center gap-1.5 w-full px-4 py-2.5 rounded-lg bg-primary text-primary-foreground text-sm font-semibold select-none">
             Start Free <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -332,7 +334,7 @@ function HeroMockup() {
   );
 }
 
-function PricingCard({ plan, isYearly }) {
+function PricingCard({ plan, isYearly, onSignUp }) {
   const price = isYearly ? plan.price.yearly : plan.price.monthly;
   return (
     <div className={cn(
@@ -370,7 +372,7 @@ function PricingCard({ plan, isYearly }) {
         ))}
       </ul>
       <button
-        onClick={() => db.auth.redirectToLogin()}
+        onClick={onSignUp}
         className={cn(
           'w-full text-center py-2.5 rounded-xl font-semibold text-sm transition-all select-none',
           plan.highlight
@@ -404,11 +406,19 @@ function FAQItem({ q, a }) {
 
 /* ─── Main Page ─────────────────────────────────────── */
 export default function Landing() {
+  const navigate = useNavigate();
   const [isYearly, setIsYearly] = useState(false);
+
+  const openAuthPage = (path) => {
+    navigate(path, { state: { fromLanding: true } });
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
-      <Navbar />
+      <Navbar
+        onSignIn={() => openAuthPage('/signin')}
+        onSignUp={() => openAuthPage('/signup')}
+      />
 
       {/* ── Hero ─────────────────────────────────────── */}
       <section className="relative pt-32 pb-20 sm:pt-40 sm:pb-28 px-4 sm:px-6 text-center overflow-hidden">
@@ -438,9 +448,9 @@ export default function Landing() {
 
         <Reveal delay={240}>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link to="/" className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/25 select-none text-sm sm:text-base">
+            <button onClick={() => openAuthPage('/signup')} className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 transition-all shadow-lg shadow-primary/25 select-none text-sm sm:text-base">
               Start Free Trial <ArrowRight className="w-4 h-4" />
-            </Link>
+            </button>
             <a href="#features" className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl border border-border bg-card text-foreground font-semibold hover:bg-muted transition-all select-none text-sm sm:text-base">
               <Play className="w-4 h-4" /> Book a Demo
             </a>
@@ -618,7 +628,7 @@ export default function Landing() {
           <div className="grid sm:grid-cols-3 gap-6 items-start">
             {PLANS.map((plan, i) => (
               <Reveal key={plan.name} delay={i * 80}>
-                <PricingCard plan={plan} isYearly={isYearly} />
+                <PricingCard plan={plan} isYearly={isYearly} onSignUp={() => openAuthPage('/signup')} />
               </Reveal>
             ))}
           </div>
@@ -653,7 +663,7 @@ export default function Landing() {
               Join thousands of teams who replaced their tool stack with OneChat. Start free today.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button onClick={() => db.auth.redirectToLogin()} className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-white text-primary font-semibold hover:bg-white/90 transition-all select-none shadow-lg text-sm sm:text-base">
+              <button onClick={() => openAuthPage('/signup')} className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl bg-white text-primary font-semibold hover:bg-white/90 transition-all select-none shadow-lg text-sm sm:text-base">
                 Start Free Trial <ArrowRight className="w-4 h-4" />
               </button>
               <a href="#pricing" className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl border border-white/30 text-white font-semibold hover:bg-white/10 transition-all select-none text-sm sm:text-base">

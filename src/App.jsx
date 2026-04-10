@@ -1,7 +1,7 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
@@ -15,6 +15,7 @@ import Tasks from '@/Pages/Task';
 import AIAssistant from '@/Pages/AIAssistant';
 import Search from '@/Pages/Search';
 import Landing from '@/Pages/Landing';
+import { SignInPage, SignUpPage } from '@/Pages/Auth';
 /**
  * AuthenticatedApp - Handles routing and auth state for logged-in users
  * 
@@ -53,7 +54,10 @@ const AuthenticatedApp = () => {
   if (!isLoadingAuth && !isLoadingPublicSettings && !isAuthenticated) {
     return (
       <Routes>
-        <Route path="*" element={<Landing />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/signin" element={<SignInPage />} />
+        <Route path="/signup" element={<SignUpPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     );
   }

@@ -44,10 +44,42 @@ export const signOut = async () => {
   if (error) throw error;
 };
 
+const resolveAuthPath = (basePath, fallbackPath) => {
+  const targetPath = typeof basePath === 'string' && basePath.trim() ? basePath.trim() : fallbackPath;
+  return new URL(targetPath, window.location.origin);
+};
+
+const redirectToAuthPage = (basePath, fallbackPath, redirectUrl = window.location.href) => {
+  const authUrl = resolveAuthPath(basePath, fallbackPath);
+  authUrl.searchParams.set('redirect', redirectUrl);
+  window.location.href = authUrl.toString();
+};
+
 export const redirectToLogin = (redirectUrl) => {
-  const loginUrl = new URL(import.meta.env.VITE_SUPABASE_LOGIN_URL || '/login');
-  loginUrl.searchParams.set('redirect', redirectUrl);
-  window.location.href = loginUrl.toString();
+  redirectToAuthPage(import.meta.env.VITE_SUPABASE_LOGIN_URL, '/signin', redirectUrl);
+};
+
+export const redirectToSignup = (redirectUrl) => {
+  redirectToAuthPage(import.meta.env.VITE_SUPABASE_SIGNUP_URL, '/signup', redirectUrl);
+};
+
+export const signInWithPassword = async ({ email, password }) => {
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error) throw error;
+  return data;
+};
+
+export const signUpWithPassword = async ({ email, password, fullName, redirectTo }) => {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: fullName ? { full_name: fullName } : undefined,
+      emailRedirectTo: redirectTo,
+    },
+  });
+  if (error) throw error;
+  return data;
 };
 
 export const invokeGroq = async (input, fallbackModel = 'llama-3.3-70b-versatile') => {

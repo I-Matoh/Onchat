@@ -51,6 +51,23 @@ export const AuthProvider = ({ children }) => {
   // Run on mount - check session and validate user
   useEffect(() => {
     checkAppState();
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setUser(session.user);
+        setIsAuthenticated(true);
+        setAuthError(null);
+      } else {
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+
+      setIsLoadingAuth(false);
+      setIsLoadingPublicSettings(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   // Main entry point - checks for existing session then validates user
