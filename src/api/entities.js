@@ -77,4 +77,12 @@ export const entities = {
   Page: createEntity('pages'),
   Conversation: createEntity('conversations'),
   Message: createEntity('messages'),
+  Reaction: createEntity('reactions'),
+  Meeting: createEntity('meetings'),
+  MeetingParticipant: createEntity('meeting_participants'),
+  CalendarEvent: createEntity('calendar_events'),
+  WorkspaceMember: createEntity('workspace_members'),
+  Integration: createEntity('integrations'),
+  AIUsageLog: createEntity('ai_usage_logs'),
+  PageBlock: createEntity('page_blocks'),
 };

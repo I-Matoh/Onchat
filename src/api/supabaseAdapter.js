@@ -47,7 +47,31 @@ export const db = {
   entities,
   integrations: {
     Core: {
-      InvokeLLM: invokeGroq
+      InvokeLLM: async (input, feature = 'custom_prompt', fallbackModel = 'llama-3.3-70b-versatile') => {
+        // Get current user/workspace context (ideally from a context provider)
+        // For now, we'll get from supabase session
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Not authenticated');
+
+        // Try to get workspace ID from user metadata or a separate lookup
+        // For simplicity, we'll just log user-level usage
+        const response = await invokeGroq(input, fallbackModel);
+
+        // Log AI usage asynchronously (don't block)
+        try {
+          await entities.AIUsageLog.create({
+            workspace_id: null, // Will need workspace context; can be passed optionally
+            user_id: user.id,
+            feature,
+            tokens_used: response.length, // rough estimate
+            request_count: 1,
+          });
+        } catch (e) {
+          console.warn('Failed to log AI usage:', e);
+        }
+
+        return response;
+      }
     }
   }
 };

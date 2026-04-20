@@ -14,8 +14,10 @@ import PageEditor from '@/Pages/PageEditor';
 import Tasks from '@/Pages/Task';
 import AIAssistant from '@/Pages/AIAssistant';
 import Search from '@/Pages/Search';
+import Meetings from '@/Pages/Meetings';
 import Landing from '@/Pages/Landing';
 import { SignInPage, SignUpPage } from '@/Pages/Auth';
+import PublicPageViewer from '@/Pages/PublicPageViewer';
 /**
  * AuthenticatedApp - Handles routing and auth state for logged-in users
  * 
@@ -70,9 +72,12 @@ const AuthenticatedApp = () => {
         <Route path="/chat" element={<Chat />} />
         <Route path="/pages/:pageId" element={<PageEditor />} />
         <Route path="/tasks" element={<Tasks />} />
+        <Route path="/meetings" element={<Meetings />} />
         <Route path="/ai" element={<AIAssistant />} />
         <Route path="/search" element={<Search />} />
       </Route>
+      {/* Public pages (no auth required) */}
+      <Route path="/share/:token" element={<PublicPageViewer />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

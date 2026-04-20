@@ -252,13 +252,21 @@ CREATE INDEX idx_page_blocks_page ON public.page_blocks(page_id);
 Enable RLS and create policies for each table:
 
 ```sql
--- Enable RLS
+-- Enable RLS on all tables
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.conversations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meetings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.meeting_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.workspace_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_usage_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.page_blocks ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Users can only read/update their own profile
 CREATE POLICY "Users can view own profile" ON public.profiles
@@ -267,26 +275,49 @@ CREATE POLICY "Users can view own profile" ON public.profiles
 CREATE POLICY "Users can update own profile" ON public.profiles
   FOR UPDATE USING (auth.uid() = id);
 
--- Workspaces: Owner and members can access
+-- Workspaces: Owners and members can access
 CREATE POLICY "Workspace owner full access" ON public.workspaces
   FOR ALL USING (auth.uid() = owner_id);
+
+CREATE POLICY "Workspace members can view" ON public.workspaces
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.workspace_members wm
+      WHERE wm.workspace_id = id AND wm.user_id = auth.uid()
+    )
+  );
 
 -- Tasks: Workspace members can access
 CREATE POLICY "Task workspace access" ON public.tasks
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.workspaces WHERE id = workspace_id AND owner_id = auth.uid())
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE tasks.workspace_id = w.id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
   );
 
--- Pages: Workspace members can access
+-- Pages: Workspace members can access, public pages accessible without auth
 CREATE POLICY "Page workspace access" ON public.pages
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.workspaces WHERE id = workspace_id AND owner_id = auth.uid())
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE pages.workspace_id = w.id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
   );
+
+CREATE POLICY "Public pages readable" ON public.pages
+  FOR SELECT USING (is_public = TRUE);
 
 -- Conversations: Workspace members can access
 CREATE POLICY "Conversation workspace access" ON public.conversations
   FOR ALL USING (
-    EXISTS (SELECT 1 FROM public.workspaces WHERE id = workspace_id AND owner_id = auth.uid())
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE conversations.workspace_id = w.id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
   );
 
 -- Messages: Conversation participants can access
@@ -295,10 +326,99 @@ CREATE POLICY "Message conversation access" ON public.messages
     EXISTS (
       SELECT 1 FROM public.conversations c
       JOIN public.workspaces w ON w.id = c.workspace_id
-      WHERE c.id = conversation_id AND w.owner_id = auth.uid()
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE messages.conversation_id = c.id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
+  );
+
+-- Reactions: Message viewers can add/remove reactions
+CREATE POLICY "Reaction access" ON public.reactions
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.messages m
+      JOIN public.conversations c ON m.conversation_id = c.id
+      JOIN public.workspaces w ON c.workspace_id = w.id
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE m.id = reactions.message_id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
+  );
+
+-- Meetings: Workspace members can access
+CREATE POLICY "Meeting workspace access" ON public.meetings
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE meetings.workspace_id = w.id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
+  );
+
+-- Meeting participants: Meeting attendees can view/manage
+CREATE POLICY "Meeting participant access" ON public.meeting_participants
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.meetings m
+      JOIN public.workspaces w ON m.workspace_id = w.id
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE m.id = meeting_participants.meeting_id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
+  );
+
+-- Calendar events: Workspace members can access
+CREATE POLICY "Calendar event workspace access" ON public.calendar_events
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE calendar_events.workspace_id = w.id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
+  );
+
+-- Workspace members: Members can view, admins can modify
+CREATE POLICY "Workspace member access" ON public.workspace_members
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      WHERE w.id = workspace_members.workspace_id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
+    )
+  );
+
+-- Integrations: Workspace owners/admins can manage
+CREATE POLICY "Integration workspace access" ON public.integrations
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE integrations.workspace_id = w.id AND (w.owner_id = auth.uid() OR (wm.user_id = auth.uid() AND wm.role IN ('owner', 'admin')))
+    )
+  );
+
+-- AI usage logs: Workspace members can view their own, admins can view all
+CREATE POLICY "AI usage log access" ON public.ai_usage_logs
+  FOR ALL USING (
+    auth.uid() = user_id OR
+    EXISTS (
+      SELECT 1 FROM public.workspaces w
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE ai_usage_logs.workspace_id = w.id AND (w.owner_id = auth.uid() OR wm.role IN ('owner', 'admin'))
+    )
+  );
+
+-- Page blocks: Page editors can manage
+CREATE POLICY "Page block access" ON public.page_blocks
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.pages p
+      JOIN public.workspaces w ON p.workspace_id = w.id
+      LEFT JOIN public.workspace_members wm ON w.id = wm.workspace_id
+      WHERE p.id = page_blocks.page_id AND (w.owner_id = auth.uid() OR wm.user_id = auth.uid())
     )
   );
 ```
+
+---
+
+
 
 ---
 
@@ -311,11 +431,13 @@ Create a trigger to automatically create a profile when a user signs up:
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, email, full_name)
+  INSERT INTO public.profiles (id, email, full_name, ai_usage_count, ai_usage_reset_at)
   VALUES (
     NEW.id,
     NEW.email,
-    NEW.raw_user_meta_data->>'full_name'
+    NEW.raw_user_meta_data->>'full_name',
+    0,
+    NOW() + INTERVAL '1 month'  -- Reset usage monthly
   );
   RETURN NEW;
 END;
@@ -325,6 +447,17 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- Monthly AI usage reset function (run via cron or Supabase Scheduler)
+CREATE OR REPLACE FUNCTION public.reset_monthly_ai_usage()
+RETURNS void AS $$
+BEGIN
+  UPDATE public.profiles
+  SET ai_usage_count = 0,
+      ai_usage_reset_at = NOW() + INTERVAL '1 month'
+  WHERE ai_usage_reset_at <= NOW();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 ```
 
 ---
@@ -339,6 +472,8 @@ ALTER PUBLICATION supabase_realtime ADD TABLE public.tasks;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.pages;
 ALTER PUBLICATION supabase_realtime ADD TABLE public.conversations;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.meetings;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.reactions;
 ```
 
 ---
@@ -350,11 +485,102 @@ Create a `.env` file in the project root:
 ```env
 VITE_SUPABASE_URL=your-supabase-project-url
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 VITE_GROQ_API_KEY=your-groq-api-key
+VITE_STRIPE_PUBLISHABLE_KEY=your-stripe-publishable-key
+VITE_STRIPE_SECRET_KEY=your-stripe-secret-key
 ```
 
 **Security Note:** Never commit `.env` to version control. Add it to `.gitignore`.
+
+---
+
+## Subscription & Billing Setup
+
+### Stripe Integration
+1. Create a Stripe account at https://stripe.com
+2. Get publishable and secret keys from Developers → API keys
+3. Create products in Stripe with the following price IDs:
+
+| Plan | Price (per user/month) | Stripe Price ID |
+|------|----------------------|-----------------|
+| Free | $0 | (no price needed) |
+| Pro | $15 | `price_xxx` |
+| Business | $25 | `price_yyy` |
+| Enterprise | Custom | Contact sales |
+
+### Usage Limit Enforcement Function
+
+Create a database function to check and enforce AI usage limits:
+
+```sql
+-- Check if workspace has exceeded AI usage limit
+CREATE OR REPLACE FUNCTION public.check_ai_usage_limit(
+  p_workspace_id UUID,
+  p_feature TEXT,
+  p_additional_requests INTEGER DEFAULT 1
+)
+RETURNS BOOLEAN AS $$
+DECLARE
+  v_tier TEXT;
+  v_plan_limits JSONB := '{
+    "free": {"monthly_requests": 10},
+    "pro": {"monthly_requests": -1},
+    "business": {"monthly_requests": -1},
+    "enterprise": {"monthly_requests": -1}
+  }'::jsonb;
+  v_current_month_start TIMESTAMPTZ := date_trunc('month', NOW());
+  v_used_this_month INTEGER;
+  v_limit INTEGER;
+  v_workspace_owner_id UUID;
+BEGIN
+  -- Get workspace tier and owner
+  SELECT subscription_tier, owner_id INTO v_tier, v_workspace_owner_id
+  FROM public.workspaces WHERE id = p_workspace_id;
+
+  -- If pro/business/enterprise or owner, always allow
+  IF v_tier IN ('pro', 'business', 'enterprise') OR v_workspace_owner_id = auth.uid() THEN
+    RETURN TRUE;
+  END IF;
+
+  -- Get limit for tier
+  v_limit := (v_plan_limits->>v_tier)::INTEGER;
+
+  -- Count usage this month
+  SELECT COALESCE(SUM(request_count), 0) INTO v_used_this_month
+  FROM public.ai_usage_logs
+  WHERE workspace_id = p_workspace_id
+    AND feature = p_feature
+    AND created_at >= v_current_month_start;
+
+  -- Check if limit exceeded
+  IF v_limit > 0 AND (v_used_this_month + p_additional_requests) > v_limit THEN
+    RETURN FALSE;  -- Limit exceeded
+  END IF;
+
+  RETURN TRUE;  -- Within limit
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Log AI usage
+CREATE OR REPLACE FUNCTION public.log_ai_usage(
+  p_workspace_id UUID,
+  p_user_id UUID,
+  p_feature TEXT,
+  p_tokens_used INTEGER DEFAULT 0,
+  p_request_count INTEGER DEFAULT 1
+)
+RETURNS VOID AS $$
+BEGIN
+  INSERT INTO public.ai_usage_logs (
+    workspace_id, user_id, feature, tokens_used, request_count
+  ) VALUES (
+    p_workspace_id, p_user_id, p_feature, p_tokens_used, p_request_count
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+```
 
 ---
 

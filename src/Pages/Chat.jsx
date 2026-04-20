@@ -1,76 +1,114 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { db } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Hash, Plus, Send, MessageSquare, Users } from 'lucide-react';
+import { Hash, Plus, Send, MessageSquare, Users, Reply, X, CornerDownRight } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import CreateConversationModal from '@/components/chat/CreateConversationModal';
+import EmojiPicker from '@/components/chat/EmojiPicker';
+import ReactionBadge from '@/components/chat/ReactionBadge';
 
 /**
- * Chat - Real-time messaging interface with channel support
+ * Chat - Real-time messaging interface with threaded replies
  * 
- * This component provides a Slack-like chat experience with:
- * - Channel sidebar listing all conversations in the workspace
- * - Real-time message display with optimistic updates
- * - Supabase realtime subscriptions for live message updates
- * - Support for both public channels and direct messages
- * 
- * Key features:
- * - Auto-select first channel on load
- * - Auto-scroll to newest messages
- * - Optimistic UI updates for instant message feedback
- * - Grouped message bubbles for consecutive messages from same user
- * - Polling fallback (3s interval) alongside realtime subscription
+ * Features:
+ * - Channel sidebar with conversation list
+ * - Threaded message replies (Slack-like)
+ * - Real-time updates via Supabase subscriptions
+ * - Message reactions with emoji picker
+ * - Optimistic UI for instant feedback
+ * - Visual thread connectors for nested replies
  */
 export default function Chat() {
-  // Get auth user and workspace from layout context
   const { user, currentWorkspaceId } = useOutletContext();
-  // Currently selected conversation ID
   const [selectedConvId, setSelectedConvId] = useState(null);
-  // Current message input text
   const [messageText, setMessageText] = useState('');
-  // Modal state for creating new channel
   const [showCreate, setShowCreate] = useState(false);
-  // Prevent double-send while API call in progress
   const [sending, setSending] = useState(false);
-  // Ref for auto-scroll to bottom of messages
+  const [replyingTo, setReplyingTo] = useState(null); // { id, sender_name, content }
+  const [expandedThreads, setExpandedThreads] = useState(new Set());
   const bottomRef = useRef(null);
-  // Query client for cache updates
   const queryClient = useQueryClient();
 
-  // Fetch all conversations in workspace
   const { data: conversations = [] } = useQuery({
     queryKey: ['conversations', currentWorkspaceId],
     queryFn: () => db.entities.Conversation.filter({ workspace_id: currentWorkspaceId }),
     enabled: !!currentWorkspaceId,
   });
 
-  // Fetch messages for selected conversation - poll every 3s as realtime backup
-  const { data: messages = [] } = useQuery({
+  // Fetch all messages and build thread tree
+  const { data: allMessages = [] } = useQuery({
     queryKey: ['messages', selectedConvId],
-    queryFn: () => db.entities.Message.filter({ conversation_id: selectedConvId }, 'created_date', 100),
+    queryFn: async () => {
+      const msgs = await db.entities.Message.filter({ conversation_id: selectedConvId }, 'created_date', 500);
+      return msgs;
+    },
     enabled: !!selectedConvId,
     refetchInterval: 3000,
   });
 
-  // Find selected conversation object
+  // Fetch reactions for all messages in this conversation
+  const { data: reactions = [] } = useQuery({
+    queryKey: ['reactions', selectedConvId],
+    queryFn: async () => {
+      if (!allMessages.length) return [];
+      const messageIds = allMessages.map(m => m.id);
+      // Fetch all reactions for messages in this conversation
+      const allReactions = await db.entities.Reaction.list();
+      return allReactions.filter(r => messageIds.includes(r.message_id));
+    },
+    enabled: !!selectedConvId && allMessages.length > 0,
+    refetchInterval: 3000,
+  });
+
+  // Build thread hierarchy: top-level messages with replies array
+  const { topLevelMessages } = useMemo(() => {
+    const messageMap = new Map();
+    const roots = [];
+
+    // First pass: create map with reactions attached
+    allMessages.forEach(msg => {
+      const msgReactions = reactions.filter(r => r.message_id === msg.id);
+      messageMap.set(msg.id, { ...msg, replies: [], reactions: msgReactions });
+    });
+
+    // Second pass: build tree
+    allMessages.forEach(msg => {
+      const node = messageMap.get(msg.id);
+      if (msg.parent_message_id) {
+        const parent = messageMap.get(msg.parent_message_id);
+        if (parent) {
+          parent.replies.push(node);
+        }
+      } else {
+        roots.push(node);
+      }
+    });
+
+    // Sort roots by date, sort replies within each parent
+    roots.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+    roots.forEach(root => {
+      root.replies.sort((a, b) => new Date(a.created_date) - new Date(b.created_date));
+    });
+
+    return { topLevelMessages: roots };
+  }, [allMessages, reactions]);
+
   const selectedConv = conversations.find(c => c.id === selectedConvId);
 
-  // Auto-select first conversation on load
   useEffect(() => {
     if (conversations.length > 0 && !selectedConvId) {
       setSelectedConvId(conversations[0].id);
     }
   }, [conversations]);
 
-  // Auto-scroll to newest message when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [topLevelMessages]);
 
   // Real-time subscription
   useEffect(() => {
@@ -88,8 +126,9 @@ export default function Chat() {
     setSending(true);
     const text = messageText.trim();
     setMessageText('');
+    const parentId = replyingTo?.id;
+    setReplyingTo(null);
 
-    // Optimistic update — add message immediately
     const optimisticMsg = {
       id: `optimistic-${Date.now()}`,
       conversation_id: selectedConvId,
@@ -98,6 +137,7 @@ export default function Chat() {
       sender_name: user?.full_name || user?.email,
       content: text,
       message_type: 'text',
+      parent_message_id: parentId || null,
       created_date: new Date().toISOString(),
     };
     queryClient.setQueryData(['messages', selectedConvId], (old = []) => [...old, optimisticMsg]);
@@ -109,11 +149,16 @@ export default function Chat() {
       sender_name: user?.full_name || user?.email,
       content: text,
       message_type: 'text',
+      parent_message_id: parentId || null,
     });
-    await db.entities.Conversation.update(selectedConvId, {
-      last_message: text,
-      last_message_at: new Date().toISOString(),
-    });
+
+    if (!parentId) {
+      await db.entities.Conversation.update(selectedConvId, {
+        last_message: text,
+        last_message_at: new Date().toISOString(),
+      });
+    }
+
     queryClient.invalidateQueries({ queryKey: ['messages', selectedConvId] });
     queryClient.invalidateQueries({ queryKey: ['conversations', currentWorkspaceId] });
     setSending(false);
@@ -121,6 +166,44 @@ export default function Chat() {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  const toggleThread = (msgId) => {
+    setExpandedThreads(prev => {
+      const next = new Set(prev);
+      if (next.has(msgId)) next.delete(msgId);
+      else next.add(msgId);
+      return next;
+    });
+  };
+
+  const handleAddReaction = async (messageId, emoji) => {
+    try {
+      await db.entities.Reaction.create({
+        message_id: messageId,
+        user_id: user.id,
+        emoji,
+      });
+      queryClient.invalidateQueries({ queryKey: ['messages', selectedConvId] });
+    } catch (err) {
+      console.error('Failed to add reaction:', err);
+    }
+  };
+
+  const handleRemoveReaction = async (messageId, emoji) => {
+    try {
+      const { data: reactions } = await db.entities.Reaction.filter({
+        message_id: messageId,
+        user_id: user.id,
+        emoji,
+      });
+      if (reactions.length > 0) {
+        await db.entities.Reaction.delete(reactions[0].id);
+      }
+      queryClient.invalidateQueries({ queryKey: ['messages', selectedConvId] });
+    } catch (err) {
+      console.error('Failed to remove reaction:', err);
+    }
   };
 
   return (
@@ -170,22 +253,29 @@ export default function Chat() {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-4">
-              {messages.length === 0 ? (
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-4">
+              {topLevelMessages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center">
                   <MessageSquare className="w-10 h-10 text-muted-foreground/40 mb-3" />
                   <p className="text-sm text-muted-foreground">No messages yet. Start the conversation!</p>
                 </div>
               ) : (
-                messages.map((msg, i) => {
-                  const isMe = msg.sender_email === user?.email;
-                  const prevMsg = messages[i - 1];
-                  const sameAuthor = prevMsg?.sender_email === msg.sender_email &&
-                    (new Date(msg.created_date) - new Date(prevMsg.created_date)) < 300000;
-                  return (
-                    <MessageBubble key={msg.id} msg={msg} isMe={isMe} compact={sameAuthor} />
-                  );
-                })
+                <div className="space-y-1">
+                  {topLevelMessages.map(msg => (
+                    <MessageNode
+                      key={msg.id}
+                      msg={msg}
+                      isMe={msg.sender_email === user?.email}
+                      userEmail={user?.email}
+                      onReply={setReplyingTo}
+                      onToggleThread={toggleThread}
+                      onAddReaction={handleAddReaction}
+                      onRemoveReaction={handleRemoveReaction}
+                      threadExpanded={expandedThreads.has(msg.id)}
+                      depth={0}
+                    />
+                  ))}
+                </div>
               )}
               <div ref={bottomRef} />
             </div>
@@ -193,11 +283,20 @@ export default function Chat() {
             {/* Input */}
             <div className="p-3 border-t border-border">
               <div className="flex items-center gap-2 bg-muted/60 rounded-xl px-3 py-2 border border-border">
+                {replyingTo && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md shrink-0">
+                    <Reply className="w-3 h-3" />
+                    <span>Replying to {replyingTo.sender_name}</span>
+                    <button onClick={() => setReplyingTo(null)} className="hover:text-foreground">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
                 <Input
                   value={messageText}
                   onChange={e => setMessageText(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  placeholder={`Message #${selectedConv.name}`}
+                  placeholder={replyingTo ? `Reply to ${replyingTo.sender_name}...` : `Message #${selectedConv.name}`}
                   className="border-0 bg-transparent shadow-none focus-visible:ring-0 px-0 text-sm"
                 />
                 <button
@@ -234,33 +333,120 @@ export default function Chat() {
   );
 }
 
-function MessageBubble({ msg, isMe, compact }) {
+function MessageNode({ msg, isMe, userEmail, onReply, onToggleThread, onAddReaction, onRemoveReaction, threadExpanded, depth }) {
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const hasReplies = msg.replies && msg.replies.length > 0;
+
+  // Count reaction occurrences from msg.reactions
+  const reactionCounts = useMemo(() => {
+    const counts = {};
+    (msg.reactions || []).forEach(r => {
+      counts[r.emoji] = (counts[r.emoji] || 0) + 1;
+    });
+    return counts;
+  }, [msg.reactions]);
+
+  const handleReaction = (emoji) => {
+    if (msg.reactions?.some(r => r.emoji === emoji && r.user_id === userEmail)) {
+      onRemoveReaction(msg.id, emoji);
+    } else {
+      onAddReaction(msg.id, emoji);
+    }
+  };
+
+  const timeAgo = formatDistanceToNow(new Date(msg.created_date), { addSuffix: true });
+
   return (
-    <div className={cn("flex gap-3 group", isMe && "flex-row-reverse")}>
-      {!compact ? (
-        <Avatar className="w-8 h-8 shrink-0 mt-0.5">
-          <AvatarFallback className={cn("text-xs font-semibold", isMe ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
-            {(msg.sender_name || msg.sender_email)?.[0]?.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-      ) : (
-        <div className="w-8 shrink-0" />
-      )}
-      <div className={cn("max-w-[70%]", isMe && "items-end flex flex-col")}>
-        {!compact && (
-          <div className={cn("flex items-baseline gap-2 mb-1", isMe && "flex-row-reverse")}>
-            <span className="text-xs font-semibold text-foreground">{msg.sender_name || msg.sender_email}</span>
-            <span className="text-xs text-muted-foreground">{format(new Date(msg.created_date), 'HH:mm')}</span>
-          </div>
-        )}
+    <div className={cn("flex gap-3 group", isMe && "flex-row-reverse", depth > 0 && "ml-8 pl-4 border-l-2 border-border/50")}>
+      <Avatar className={cn("w-7 h-7 shrink-0 mt-0.5", depth > 0 && "w-6 h-6")}>
+        <AvatarFallback className={cn("text-xs font-semibold", isMe ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+          {(msg.sender_name || msg.sender_email)?.[0]?.toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className={cn("flex-1 min-w-0", isMe && "items-end flex flex-col")}>
+        <div className={cn("flex items-baseline gap-2 mb-0.5", isMe && "flex-row-reverse")}>
+          <span className="text-xs font-semibold text-foreground">{msg.sender_name || msg.sender_email}</span>
+          <span className="text-xs text-muted-foreground">{timeAgo}</span>
+        </div>
         <div className={cn(
-          "px-3 py-2 rounded-2xl text-sm leading-relaxed",
+          "px-3 py-2 rounded-2xl text-sm leading-relaxed inline-block max-w-fit",
           isMe
             ? "bg-primary text-primary-foreground rounded-tr-sm"
             : "bg-card border border-border text-foreground rounded-tl-sm"
         )}>
           {msg.content}
         </div>
+
+        {/* Reactions */}
+        {reactionCounts && Object.keys(reactionCounts).length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1 ml-1">
+            {Object.entries(reactionCounts).map(([emoji, count]) => (
+              <ReactionBadge
+                key={emoji}
+                emoji={emoji}
+                count={count}
+                active={reactions.some(r => r.emoji === emoji && r.user_id === userEmail)}
+                onClick={() => handleReaction(emoji)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Message actions */}
+        <div className={cn("flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity", isMe && "flex-row-reverse")}>
+          <button
+            onClick={() => onReply(msg)}
+            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+          >
+            <Reply className="w-3 h-3" />
+            Reply
+          </button>
+          {hasReplies && (
+            <button
+              onClick={() => onToggleThread(msg.id)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              {threadExpanded ? 'Hide' : 'Show'} {msg.replies.length} {msg.replies.length === 1 ? 'reply' : 'replies'}
+            </button>
+          )}
+          <button
+            onClick={() => setShowReactionPicker(!showReactionPicker)}
+            className="text-xs text-muted-foreground hover:text-foreground"
+          >
+            React
+          </button>
+        </div>
+
+        {/* Reaction picker */}
+        {showReactionPicker && (
+          <EmojiPicker
+            onSelect={(emoji) => {
+              handleReaction(emoji);
+              setShowReactionPicker(false);
+            }}
+            onClose={() => setShowReactionPicker(false)}
+          />
+        )}
+
+        {/* Thread replies */}
+        {hasReplies && threadExpanded && (
+          <div className="mt-2 space-y-2">
+            {msg.replies.map(reply => (
+              <MessageNode
+                key={reply.id}
+                msg={reply}
+                isMe={reply.sender_email === userEmail}
+                userEmail={userEmail}
+                onReply={onReply}
+                onToggleThread={onToggleThread}
+                onAddReaction={onAddReaction}
+                onRemoveReaction={onRemoveReaction}
+                threadExpanded={false}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

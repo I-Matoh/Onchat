@@ -3,28 +3,25 @@ import { useOutletContext } from 'react-router-dom';
 import { db } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, CheckSquare, Circle, Clock, AlertCircle, Trash2, User } from 'lucide-react';
+import { CheckSquare, Circle, Clock, Trash2, User, LayoutGrid, Table as TableIcon, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import CreateTaskModal from '@/components/tasks/CreateTaskModal';
 
 /**
- * Task - Kanban-style task management interface
+ * Tasks - Task management with multiple view modes (Kanban / Table)
+ * 
+ * Views:
+ * - Kanban: column-based board grouped by status
+ * - Table: spreadsheet-like tabular view
  * 
  * Features:
- * - Three-column Kanban board: Todo, In Progress, Done
- * - Task filtering by status
- * - Inline status advancement via circular buttons
- * - Task priority display (low/medium/high with color coding)
- * - Due date and assignee display
- * - Create and delete functionality
- * - Real-time query invalidation on mutations
- * 
- * Uses React Query for data fetching with workspace-scoped queries.
- * Grouped display by status with task count badges.
+ * - Filter by status
+ * - Create/delete/update tasks
+ * - Priority & due date
+ * - Assignee tracking
  */
 
 /** Status display configuration mapping status keys to UI properties */
@@ -41,13 +38,10 @@ const PRIORITY_CONFIG = {
 };
 
 export default function Tasks() {
-  // User and workspace from parent layout context
   const { user, currentWorkspaceId } = useOutletContext();
-  // Filter by status dropdown value
   const [filterStatus, setFilterStatus] = useState('all');
-  // Modal visibility for creating tasks
+  const [viewMode, setViewMode] = useState('kanban'); // 'kanban' | 'table'
   const [showCreate, setShowCreate] = useState(false);
-  // React Query client for cache invalidation
   const queryClient = useQueryClient();
 
   // Fetch all tasks in workspace
@@ -76,7 +70,7 @@ export default function Tasks() {
   };
 
   return (
-    <div className="h-full overflow-y-auto p-4 sm:p-6 animate-fade-in">
+    <div className="h-full overflow-y-auto p-4 sm:p-6 lg:p-8 animate-fade-in">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -96,6 +90,25 @@ export default function Tasks() {
                 <SelectItem value="done">Done</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* View Mode Toggle */}
+            <div className="flex items-center bg-muted rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('kanban')}
+                className={cn("p-1.5 rounded text-xs", viewMode === 'kanban' ? "bg-background shadow-sm" : "text-muted-foreground")}
+                title="Kanban"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('table')}
+                className={cn("p-1.5 rounded text-xs", viewMode === 'table' ? "bg-background shadow-sm" : "text-muted-foreground")}
+                title="Table"
+              >
+                <TableIcon className="w-4 h-4" />
+              </button>
+            </div>
+
             <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1.5">
               <Plus className="w-3.5 h-3.5" /> Add Task
             </Button>
@@ -112,43 +125,121 @@ export default function Tasks() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Object.entries(grouped).map(([status, statusTasks]) => {
-              const cfg = STATUS_CONFIG[status];
-              const Icon = cfg.icon;
-              return (
-                <div key={status} className="space-y-2">
-                  <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg", cfg.bg)}>
-                    <Icon className={cn("w-4 h-4", cfg.color)} />
-                    <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
-                    <span className="ml-auto text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded-full">{statusTasks.length}</span>
+          viewMode === 'kanban' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(grouped).map(([status, statusTasks]) => {
+                const cfg = STATUS_CONFIG[status];
+                const Icon = cfg.icon;
+                return (
+                  <div key={status} className="space-y-2">
+                    <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg", cfg.bg)}>
+                      <Icon className={cn("w-4 h-4", cfg.color)} />
+                      <span className={cn("text-sm font-semibold", cfg.color)}>{cfg.label}</span>
+                      <span className="ml-auto text-xs text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded-full">{statusTasks.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {statusTasks.map(task => (
+                        <TaskCard
+                          key={task.id}
+                          task={task}
+                          onStatusChange={updateStatus}
+                          onDelete={deleteTask}
+                          currentStatus={status}
+                        />
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    {statusTasks.map(task => (
-                      <TaskCard
-                        key={task.id}
-                        task={task}
-                        onStatusChange={updateStatus}
-                        onDelete={deleteTask}
-                        currentStatus={status}
-                      />
+                );
+              })}
+            </div>
+          ) : (
+            <Card className="border border-border/60 shadow-sm overflow-hidden">
+              <div className="w-full overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border">
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Title</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Status</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Priority</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Assignee</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground">Due Date</th>
+                      <th className="px-4 py-3 text-left text-sm font-semibold text-muted-foreground w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map(task => (
+                      <tr key={task.id} className="border-b border-border/50 hover:bg-muted/20 group">
+                        <td className="px-4 py-3">
+                          <p className={cn("text-sm font-medium", task.status === 'done' && "line-through text-muted-foreground")}>
+                            {task.title}
+                          </p>
+                          {task.description && (
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{task.description}</p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "capitalize",
+                              task.status === 'todo' && "bg-muted text-muted-foreground border-muted",
+                              task.status === 'in_progress' && "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-500/10 dark:border-blue-500/20",
+                              task.status === 'done' && "bg-green-50 text-green-700 border-green-200 dark:bg-green-500/10 dark:border-green-500/20"
+                            )}
+                          >
+                            {task.status.replace('_', ' ')}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={cn(
+                            "text-xs px-2 py-1 rounded-full border font-medium",
+                            PRIORITY_CONFIG[task.priority]?.color
+                          )}>
+                            {PRIORITY_CONFIG[task.priority]?.label || task.priority}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {task.assignee_email?.split('@')[0] || '—'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">
+                              {task.due_date ? format(new Date(task.due_date), 'MMM d') : '—'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => deleteTask(task.id)}
+                            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
                     ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )
+        )}
+
+        {showCreate && (
+          <CreateTaskModal
+            workspaceId={currentWorkspaceId}
+            user={user}
+            onClose={() => setShowCreate(false)}
+            onCreated={() => { queryClient.invalidateQueries({ queryKey: ['tasks', currentWorkspaceId] }); setShowCreate(false); }}
+          />
         )}
       </div>
-
-      {showCreate && (
-        <CreateTaskModal
-          workspaceId={currentWorkspaceId}
-          user={user}
-          onClose={() => setShowCreate(false)}
-          onCreated={() => { queryClient.invalidateQueries({ queryKey: ['tasks', currentWorkspaceId] }); setShowCreate(false); }}
-        />
-      )}
     </div>
   );
 }
