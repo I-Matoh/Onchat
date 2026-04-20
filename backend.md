@@ -37,6 +37,8 @@ CREATE TABLE public.profiles (
   email TEXT,
   full_name TEXT,
   avatar_url TEXT,
+  ai_usage_count INTEGER DEFAULT 0,
+  ai_usage_reset_at TIMESTAMPTZ DEFAULT NOW(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -47,60 +49,200 @@ CREATE TABLE public.workspaces (
   name TEXT NOT NULL,
   description TEXT,
   owner_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  icon TEXT DEFAULT '🏢',
+  subscription_tier TEXT DEFAULT 'free' CHECK (subscription_tier IN ('free', 'pro', 'business', 'enterprise')),
+  stripe_customer_id TEXT,
+  stripe_subscription_id TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Tasks
+-- Tasks (with view_type support)
 CREATE TABLE public.tasks (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
-  status TEXT DEFAULT 'pending',
+  status TEXT DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done')),
+  priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high')),
+  view_type TEXT DEFAULT 'kanban' CHECK (view_type IN ('kanban', 'table')),
   workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
   assigned_to UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  assigned_email TEXT,
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   due_date TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Pages
+-- Pages (with public sharing support)
 CREATE TABLE public.pages (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   title TEXT NOT NULL,
   content JSONB,
+  page_type TEXT DEFAULT 'doc' CHECK (page_type IN ('doc', 'database', 'meeting_notes')),
+  icon TEXT DEFAULT '📄',
   workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
+  parent_page_id UUID REFERENCES public.pages(id) ON DELETE SET NULL,
+  last_edited_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  is_archived BOOLEAN DEFAULT FALSE,
+  is_public BOOLEAN DEFAULT FALSE,
+  public_token UUID DEFAULT uuid_generate_v4(),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(public_token)
 );
 
--- Conversations
+-- Conversations (channels)
 CREATE TABLE public.conversations (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   name TEXT,
+  type TEXT DEFAULT 'channel' CHECK (type IN ('channel', 'direct')),
   workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
   created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Messages
+-- Messages (with threading support)
 CREATE TABLE public.messages (
   id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
   content TEXT NOT NULL,
+  message_type TEXT DEFAULT 'text' CHECK (message_type IN ('text', 'system', 'meeting_note')),
   conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
+  parent_message_id UUID REFERENCES public.messages(id) ON DELETE CASCADE,
   sender_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  sender_email TEXT,
+  sender_name TEXT,
+  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Reactions (emoji reactions on messages)
+CREATE TABLE public.reactions (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  message_id UUID REFERENCES public.messages(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  emoji TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(message_id, user_id, emoji)
+);
+
+-- Meetings (with transcripts)
+CREATE TABLE public.meetings (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  scheduled_at TIMESTAMPTZ,
+  duration_minutes INTEGER DEFAULT 30,
+  recording_url TEXT,
+  transcript TEXT,
+  transcript_status TEXT DEFAULT 'pending' CHECK (transcript_status IN ('pending', 'processing', 'completed', 'failed')),
+  auto_join_enabled BOOLEAN DEFAULT FALSE,
+  meeting_type TEXT DEFAULT 'video' CHECK (meeting_type IN ('audio', 'video', 'both')),
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  ended_at TIMESTAMPTZ,
+  participants_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Meeting participants
+CREATE TABLE public.meeting_participants (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  meeting_id UUID REFERENCES public.meetings(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  email TEXT NOT NULL,
+  name TEXT,
+  attended BOOLEAN DEFAULT FALSE,
+  joined_at TIMESTAMPTZ,
+  left_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(meeting_id, email)
+);
+
+-- Calendar events (for integration with Google Calendar)
+CREATE TABLE public.calendar_events (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
+  meeting_id UUID REFERENCES public.meetings(id) ON DELETE SET NULL,
+  external_event_id TEXT, -- Google Calendar event ID
+  title TEXT NOT NULL,
+  description TEXT,
+  start_time TIMESTAMPTZ NOT NULL,
+  end_time TIMESTAMPTZ NOT NULL,
+  attendee_emails TEXT[] DEFAULT '{}',
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Workspace members (for team collaboration)
+CREATE TABLE public.workspace_members (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  role TEXT DEFAULT 'member' CHECK (role IN ('owner', 'admin', 'member')),
+  joined_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(workspace_id, user_id)
+);
+
+-- Integrations (track connected apps)
+CREATE TABLE public.integrations (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('google_calendar', 'github', 'jira', 'salesforce', 'slack')),
+  access_token TEXT,
+  refresh_token TEXT,
+  config JSONB DEFAULT '{}',
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(workspace_id, provider)
+);
+
+-- AI usage tracking (for tier limits)
+CREATE TABLE public.ai_usage_logs (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  workspace_id UUID REFERENCES public.workspaces(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  feature TEXT NOT NULL CHECK (feature IN ('page_summary', 'extract_actions', 'meeting_transcript', 'chat', 'custom_prompt')),
+  tokens_used INTEGER DEFAULT 0,
+  request_count INTEGER DEFAULT 1,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Page blocks (for block-based editor structure)
+CREATE TABLE public.page_blocks (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  page_id UUID REFERENCES public.pages(id) ON DELETE CASCADE NOT NULL,
+  block_type TEXT NOT NULL CHECK (block_type IN ('text', 'heading', 'image', 'video', 'file', 'embedly', 'code', 'todo', 'callout', 'divider', 'table', 'database', 'meeting_notes')),
+  content JSONB DEFAULT '{}',
+  position INTEGER NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Create indexes for performance
 CREATE INDEX idx_workspaces_owner ON public.workspaces(owner_id);
 CREATE INDEX idx_tasks_workspace ON public.tasks(workspace_id);
 CREATE INDEX idx_pages_workspace ON public.pages(workspace_id);
+CREATE INDEX idx_pages_public ON public.pages(is_public, public_token) WHERE is_public = TRUE;
 CREATE INDEX idx_conversations_workspace ON public.conversations(workspace_id);
 CREATE INDEX idx_messages_conversation ON public.messages(conversation_id);
+CREATE INDEX idx_messages_parent ON public.messages(parent_message_id);
+CREATE INDEX idx_messages_sender ON public.messages(sender_id);
+CREATE INDEX idx_reactions_message ON public.reactions(message_id);
+CREATE INDEX idx_meetings_workspace ON public.meetings(workspace_id);
+CREATE INDEX idx_meeting_participants_meeting ON public.meeting_participants(meeting_id);
+CREATE INDEX idx_calendar_events_workspace ON public.calendar_events(workspace_id);
+CREATE INDEX idx_workspace_members_workspace ON public.workspace_members(workspace_id);
+CREATE INDEX idx_workspace_members_user ON public.workspace_members(user_id);
+CREATE INDEX idx_integrations_workspace ON public.integrations(workspace_id);
+CREATE INDEX idx_ai_usage_workspace ON public.ai_usage_logs(workspace_id, created_at);
+CREATE INDEX idx_page_blocks_page ON public.page_blocks(page_id);
 ```
 
 ---
