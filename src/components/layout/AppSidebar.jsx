@@ -4,7 +4,7 @@ import { db } from '@/api/supabaseAdapter';
 import { useQuery } from '@tanstack/react-query';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
-  MessageSquare, CheckSquare, Sparkles, Search,
+  MessageSquare, CheckSquare, Calendar, Sparkles, Search,
   Plus, ChevronDown, ChevronRight, LogOut, Home,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -33,6 +33,7 @@ export default function AppSidebar({ user, currentWorkspaceId, onWorkspaceChange
     { icon: Home,          label: 'Home',         path: '/' },
     { icon: MessageSquare, label: 'Chat',          path: '/chat' },
     { icon: CheckSquare,   label: 'Tasks',         path: '/tasks' },
+    { icon: Calendar,      label: 'Meetings',      path: '/meetings' },
     { icon: Sparkles,      label: 'AI Assistant',  path: '/ai' },
     { icon: Search,        label: 'Search',        path: '/search' },
   ];

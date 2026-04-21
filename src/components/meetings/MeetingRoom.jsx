@@ -2,13 +2,11 @@ import { useState } from 'react';
 import { db } from '@/api/supabaseAdapter';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Mic, MicOff, Video, VideoOff, Phone, MessageSquare, Users, Sparkles } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import MeetingNotesModal from './MeetingNotesModal';
-import EmojiPicker from '@/components/chat/EmojiPicker';
 
 export default function MeetingRoom({ meeting, user, onEnd }) {
   const queryClient = useQueryClient();

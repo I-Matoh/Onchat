@@ -91,8 +91,12 @@ ${tasksSummary || 'No open tasks'}
 Current user: ${user?.full_name || user?.email}
 Be concise, helpful and actionable. Format responses with markdown when helpful.`;
 
-      const prompt = `${systemContext}\n\nConversation so far:\n${newMessages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content}`).join('\n')}\n\nAssistant:`;
-      const response = await db.integrations.Core.InvokeLLM(prompt);
+       const prompt = `${systemContext}\n\nConversation so far:\n${newMessages.map((message) => `${message.role === 'user' ? 'User' : 'Assistant'}: ${message.content}`).join('\n')}\n\nAssistant:`;
+       const response = await db.integrations.Core.InvokeLLM(prompt, {
+         workspaceId: currentWorkspaceId,
+         userId: user?.id,
+         feature: 'chat',
+       });
 
       setMessages((prev) => [...prev, { role: 'assistant', content: response }]);
     } catch (error) {

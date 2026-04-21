@@ -22,7 +22,7 @@ const QUICK_ACTIONS = [
   { label: 'Generate Outline', prompt: 'Generate a structured outline based on:' },
 ];
 
-export default function AIPageModal({ pageTitle, pageContent, onClose, onInsert }) {
+export default function AIPageModal({ pageTitle, pageContent, onClose, onInsert, workspaceId, user }) {
   // User's custom prompt input
   const [prompt, setPrompt] = useState('');
   // AI response text
@@ -34,7 +34,6 @@ export default function AIPageModal({ pageTitle, pageContent, onClose, onInsert 
 
   // Run AI with given prompt + page context
   const runAI = async (promptText) => {
-    // Combine user prompt with current page content for context
     const fullPrompt = `${promptText}\n\nPage Title: ${pageTitle}\n\nContent: ${pageContent || '(empty page)'}`;
     if (!promptText?.trim()) return;
 
@@ -42,7 +41,11 @@ export default function AIPageModal({ pageTitle, pageContent, onClose, onInsert 
     setResult('');
 
     try {
-      const res = await db.integrations.Core.InvokeLLM(fullPrompt);
+      const res = await db.integrations.Core.InvokeLLM(fullPrompt, {
+        workspaceId,
+        userId: user?.id,
+        feature: 'page_summary', // or could be determined by action
+      });
       setResult(res);
     } catch (error) {
       console.error('AI page action failed:', error);

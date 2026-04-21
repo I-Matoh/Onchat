@@ -47,27 +47,60 @@ export const db = {
   entities,
   integrations: {
     Core: {
-      InvokeLLM: async (input, feature = 'custom_prompt', fallbackModel = 'llama-3.3-70b-versatile') => {
-        // Get current user/workspace context (ideally from a context provider)
-        // For now, we'll get from supabase session
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error('Not authenticated');
+      InvokeLLM: async (input, options = {}) => {
+        const { workspaceId, feature = 'custom_prompt', userId } = options;
+        const fallbackModel = options.fallbackModel || 'llama-3.3-70b-versatile';
 
-        // Try to get workspace ID from user metadata or a separate lookup
-        // For simplicity, we'll just log user-level usage
+        // Optionally enforce free tier limits
+        if (workspaceId) {
+          try {
+            const { data: workspace } = await supabase
+              .from('workspaces')
+              .select('subscription_tier, owner_id')
+              .eq('id', workspaceId)
+              .single();
+
+            const { data: { user: currentUser } } = await supabase.auth.getUser();
+
+            // If workspace is free and current user is not the owner, check usage
+            if (workspace && workspace.subscription_tier === 'free' && currentUser && workspace.owner_id !== currentUser.id) {
+              const startOfMonth = new Date();
+              startOfMonth.setDate(1);
+              startOfMonth.setHours(0, 0, 0, 0);
+
+              const { count } = await supabase
+                .from('ai_usage_logs')
+                .select('*', { count: 'exact', head: true })
+                .eq('workspace_id', workspaceId)
+                .eq('feature', feature)
+                .gte('created_at', startOfMonth.toISOString());
+
+              if (count >= 10) {
+                throw new Error('Free plan limit reached: 10 AI requests per month. Upgrade to continue.');
+              }
+            }
+          } catch (err) {
+            console.warn('Usage check failed:', err);
+            // Don't block; continue
+          }
+        }
+
+        // Call Groq
         const response = await invokeGroq(input, fallbackModel);
 
-        // Log AI usage asynchronously (don't block)
-        try {
-          await entities.AIUsageLog.create({
-            workspace_id: null, // Will need workspace context; can be passed optionally
-            user_id: user.id,
-            feature,
-            tokens_used: response.length, // rough estimate
-            request_count: 1,
-          });
-        } catch (e) {
-          console.warn('Failed to log AI usage:', e);
+        // Log usage
+        if (workspaceId) {
+          try {
+            await entities.AIUsageLog.create({
+              workspace_id: workspaceId,
+              user_id: userId || (await getCurrentUser())?.id,
+              feature,
+              tokens_used: response.length,
+              request_count: 1,
+            });
+          } catch (e) {
+            console.warn('Failed to log AI usage:', e);
+          }
         }
 
         return response;

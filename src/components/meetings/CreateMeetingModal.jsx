@@ -6,11 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calender';
-import { Calendar as CalendarIcon, Clock, Users, Sparkles } from 'lucide-react';
+import { Calendar as CalendarIcon, Sparkles } from 'lucide-react';
 import { format } from 'date-fns';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { useQuery } from '@tanstack/react-query';
 
 export default function CreateMeetingModal({ open, onClose, workspaceId, onCreated, user }) {
   const [title, setTitle] = useState('');

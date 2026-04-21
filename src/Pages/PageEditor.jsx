@@ -506,7 +506,9 @@ export default function PageEditor() {
           pageTitle={title}
           pageContent={editor ? editor.getText() : ''}
           onClose={() => setShowAI(false)}
-          onInsert={handleAIInsert}
+          onInsert={(text) => { editor?.commands.insertContent(`<p>${text}</p>`); setShowAI(false); }}
+          workspaceId={currentWorkspaceId}
+          user={user}
         />
       )}
     </div>

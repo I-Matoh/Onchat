@@ -2,14 +2,11 @@ import { useState, useEffect } from 'react';
 import { db } from '@/api/supabaseAdapter';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
 import { Save, Sparkles, FileText, Clock, Users, Award } from 'lucide-react';
 import { format } from 'date-fns';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
-import { Card } from '@/components/ui/card';
 import AIPageModal from '@/components/pages/AIPageModal';
 import MeetingTranscriptView from './MeetingTranscriptView';
 
@@ -157,6 +154,8 @@ export default function MeetingNotesModal({ open, onClose, meeting, user, onSave
             pageContent={editor ? editor.getText() : ''}
             onClose={() => setShowAI(false)}
             onInsert={(text) => { editor?.commands.insertContent(`<p>${text}</p>`); setShowAI(false); }}
+            workspaceId={meeting?.workspace_id}
+            user={user}
           />
         )}
       </DialogContent>
