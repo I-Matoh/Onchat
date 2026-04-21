@@ -12,7 +12,7 @@ import CreateWorkspaceModal from '@/components/workspace/CreateWorkspaceModal';
 import WorkspaceDrawer from './WorkspaceDrawer';
 import DeleteAccountDialog from './DeleteAccountDialog';
 
-export default function AppSidebar({ user, currentWorkspaceId, onWorkspaceChange, onClose }) {
+export default function AppSidebar({ user, currentWorkspaceId, onWorkspaceChange, _onClose }) {
   const location = useLocation();
   const navigate = useNavigate();
   const [showCreateWorkspace, setShowCreateWorkspace] = useState(false);
